@@ -91,10 +91,10 @@ class AIPlatformModelTest(tf.test.TestCase):
 
     m = ai_platform_model.AIPlatformModel('fake_end_point')
     instances = [{'input': [0.05]}]
-    with self.assertRaisesRegexp(
+    with self.assertRaisesRegex(
         ValueError,
         ('Explanation call failed. .*\n'
-         'Original error message: This is an error.')):
+         'Original error message: "This is an error."')):
       m.explain(instances)
 
 

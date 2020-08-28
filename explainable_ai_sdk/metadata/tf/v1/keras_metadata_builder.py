@@ -40,12 +40,6 @@ Example usage is as follows:
   builder.save_model_with_metadata("gs://xai/model/keras/")
 """
 
-from __future__ import absolute_import
-from __future__ import division
-
-from __future__ import print_function
-
-
 import tensorflow.compat.v1 as tf
 import tensorflow.compat.v1.keras as keras
 from explainable_ai_sdk.metadata.tf.v1 import graph_metadata_builder
@@ -56,6 +50,7 @@ class KerasGraphMetadataBuilder(graph_metadata_builder.GraphMetadataBuilder):
 
   def __init__(self,
                model,
+               outputs_to_explain = (),
                session = None,
                serving_inputs = None,
                serving_outputs = None,
@@ -66,6 +61,10 @@ class KerasGraphMetadataBuilder(graph_metadata_builder.GraphMetadataBuilder):
 
     Args:
       model: Keras model to write the metadata for.
+      outputs_to_explain: List of output tensors (model.outputs) to explain.
+        Only single output is supported for now. Hence, the list should
+        contain one element. This parameter is required if the model has
+        multiple outputs.
       session: Optional TF Session, if using a session different than of Keras
         backend.
       serving_inputs: A dictionary mapping from serving key to corresponding
@@ -81,7 +80,14 @@ class KerasGraphMetadataBuilder(graph_metadata_builder.GraphMetadataBuilder):
       **kwargs: Any keyword arguments to be passed to saved model builder's
         add_meta_graph() function.
     """
+    if outputs_to_explain and len(outputs_to_explain) > 1:
+      raise ValueError('"outputs_to_explain" can only contain 1 element.\n'
+                       'Got: %s' % len(outputs_to_explain))
+    if not outputs_to_explain and len(model.outputs) > 1:
+      raise ValueError('Model has multiple outputs. Please specify which one to'
+                       ' explain via "outputs_to_explain" parameter.')
     self._model = model
+    self._output_tensors = outputs_to_explain
     self._inputs, self._outputs = {}, {}
     if auto_infer:
       self._create_metadata_entries_from_model()
@@ -96,13 +102,13 @@ class KerasGraphMetadataBuilder(graph_metadata_builder.GraphMetadataBuilder):
     for model_input in self._model.inputs:
       self.add_numeric_metadata(model_input, model_input.op.name)
 
-    if len(self._model.outputs) > 1:
-      print('There are multiple outputs in the model. We support only one'
-            ' output. Using %s as the output. Please use'
-            ' "remove_output_metadata" and "add_output_metadata" functions to'
-            ' change the output metadata.' % self._model.outputs[0].name)
-    for model_output in self._model.outputs[:1]:
-      self.add_output_metadata(model_output, model_output.op.name)
+    for model_output in self._model.outputs:
+      if (not self._output_tensors or
+          model_output.name == self._output_tensors[0].name):
+        self.add_output_metadata(model_output, model_output.op.name)
+        break
+    else:
+      raise ValueError('Provided output is not one of model outputs.')
 
   def set_categorical_metadata(self,
                                model_input,

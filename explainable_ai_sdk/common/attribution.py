@@ -23,6 +23,7 @@ import gzip
 import json
 
 import numpy as np
+
 from explainable_ai_sdk.common import constants
 
 # Keys expected to be populated in the returned attribution object.
@@ -109,8 +110,10 @@ class _NumpyEncoder(json.JSONEncoder):
   def default(self, obj):
     if isinstance(obj, np.ndarray):
       return obj.tolist()
-    elif np.issubdtype(obj, np.number):
+    if np.issubdtype(type(obj), np.number):
       return obj.item()  # convert most primitive np types to py-native types.
+    if isinstance(obj, bytes):
+      return obj.decode('utf-8')
     return json.JSONEncoder.default(self, obj)
 
 
@@ -387,22 +390,19 @@ class Attribution(object):
     return tensors_dict
 
 
-class LabelIndexToAttribution(collections.MutableMapping):
-  """Dict container that holds Attribution object with label index as key."""
+class LabelIndexToAttribution(collections.abc.Mapping):
+  """Immutable Dict that holds Attribution object with label index as key.
+  """
 
-  def __init__(self, attributions = None):
-    self._data = collections.OrderedDict()
+  def __init__(self, attributions):
+    self._data = dict()
+
     if attributions:
-      self.update(attributions)
+      for attr in attributions:
+        self._data[attr.label_index] = attr
 
   def __getitem__(self, key):
     return self._data[key]
-
-  def __setitem__(self, key, value):
-    self._data[key] = value
-
-  def __delitem__(self, key):
-    del self._data[key]
 
   def __iter__(self):
     return iter(self._data)
@@ -410,15 +410,12 @@ class LabelIndexToAttribution(collections.MutableMapping):
   def __len__(self):
     return len(self._data)
 
-  def update(self, attributions):
-    for attr in attributions:
-      self._data[attr.label_index] = attr
-
-  def get_top_k_class_index_list(self, k=1):
-    """Returns top k class index in a list (sorted by example scores).
+  def get_top_k_label_index_list(self, k=1):
+    """Returns top k label index in a list (sorted by example scores).
 
     Args:
       k: Number of top classes to return. Default k=1.
+        k=None returns all classes
     """
     sorted_attr_list = sorted(
         self._data.keys(),
@@ -448,16 +445,18 @@ class LabelIndexToAttribution(collections.MutableMapping):
   def to_list(self,
               debug = False,
               include_compressed_attrs_dict = False):
-    """Returns list representation of the attributions in the same order.
+    """Returns list representation of the attributions sorted by example scores.
 
     Args:
       debug: Whether to include debug information in the returned JSON
         string.
       include_compressed_attrs_dict: Whether to include compressed attrs dict.
     """
+    # k=None gets all items
+    sorted_label_index_list = self.get_top_k_label_index_list(k=None)
     return [
-        val.to_dict(debug, include_compressed_attrs_dict)
-        for val in self._data.values()
+        self._data[label_index].to_dict(debug, include_compressed_attrs_dict)
+        for label_index in sorted_label_index_list
     ]
 
   def to_json(self,

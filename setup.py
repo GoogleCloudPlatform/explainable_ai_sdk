@@ -14,6 +14,7 @@
 
 """Sets up explainability SDK package."""
 
+from os import path
 import setuptools
 
 __package_name__ = 'explainable_ai_sdk'
@@ -24,10 +25,25 @@ with open(__package_name__ + '/version.py') as fp:
   exec(fp.read(), globals_dict)
 __version__ = globals_dict['__version__']
 
+# Read the contents of your README file
+this_directory = path.abspath(path.dirname(__file__))
+with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
+  long_description = f.read()
+  long_description = long_description.replace(
+      r'./',
+      (r'https://github.com/GoogleCloudPlatform/explainable_ai_sdk/'
+       r'blob/master/'))
+
+# Read dependencies requirements.txt
+with open('requirements.txt', 'r') as f:
+  required_packages = f.read().splitlines()
+
 setuptools.setup(
     name=__package_name__,
     description='Helper library for CAIP explanations.',
-    install_requires=[],
+    long_description=long_description,
+    long_description_content_type='text/markdown',
+    install_requires=required_packages,
     packages=setuptools.find_packages(),
     version=__version__,
     author='Google LLC',

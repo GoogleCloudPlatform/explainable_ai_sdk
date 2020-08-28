@@ -14,13 +14,16 @@
 
 
 """Model classes for obtaining explanations."""
+import json
 import os
 import re
 
 
+from absl import logging
 import google.auth.credentials
 
 from explainable_ai_sdk.common import explain_metadata
+from explainable_ai_sdk.model import configs
 from explainable_ai_sdk.model import constants
 from explainable_ai_sdk.model import explanation
 from explainable_ai_sdk.model import http_utils
@@ -129,12 +132,15 @@ class AIPlatformModel(model.Model):
 
   def explain(self,
               instances,
+              params = None,
               timeout_ms = constants.DEFAULT_TIMEOUT
              ):
     """A method to call explanation services with given instances.
 
     Args:
        instances: A list of instances for getting explanations.
+       params: Overridable parameters for the explain call. Parameters can not
+         be overriden in a remote model at the moment.
        timeout_ms: Timeout for each service call to the api (in milliseconds).
 
     Returns:
@@ -145,6 +151,10 @@ class AIPlatformModel(model.Model):
         returned error message. This is likely due to details or formats of
         the instances are not correct.
     """
+    if params:
+      logging.warn('Params can not be overriden in a remote model at the'
+                   ' moment.')
+    del params
     request_body = {'instances': instances}
     response = http_utils.make_post_request_to_ai_platform(
         self._endpoint + ':explain',
@@ -156,7 +166,7 @@ class AIPlatformModel(model.Model):
       error_msg = response['error']
       raise ValueError(('Explanation call failed. This is likely due to '
                         'incorrect instance formats. \nOriginal error '
-                        'message: ' + error_msg))
+                        'message: ' + json.dumps(error_msg)))
 
     explanations = []
     for idx, explanation_dict in enumerate(response['explanations']):

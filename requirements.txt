@@ -1,8 +1,5 @@
-matplotlib
-pandas
-numpy
-requests
+tensorflow>=1.15.0
+matplotlib>=3.2.2
+requests>=2.24.0
 
-google.auth
-google_auth_httplib2
-google-api-python-client
+google.auth>=1.14.1

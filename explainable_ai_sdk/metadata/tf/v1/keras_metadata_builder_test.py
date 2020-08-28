@@ -14,11 +14,6 @@
 
 
 """Tests for keras_metadata_builder."""
-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import json
 import os
 import numpy as np
@@ -299,7 +294,8 @@ class KerasGraphMetadataBuilderTest(tf.test.TestCase):
     fun_model = keras.Model(
         inputs=[inputs1], outputs=[outputs1, outputs2], name='fun')
 
-    builder = keras_metadata_builder.KerasGraphMetadataBuilder(fun_model)
+    builder = keras_metadata_builder.KerasGraphMetadataBuilder(
+        fun_model, outputs_to_explain=[fun_model.outputs[0]])
     generated_md = builder.get_metadata()
     expected_outputs = {
         'dense_2/Sigmoid': {
@@ -307,6 +303,20 @@ class KerasGraphMetadataBuilderTest(tf.test.TestCase):
         }
     }
     self.assertDictEqual(expected_outputs, generated_md['outputs'])
+
+  def test_get_metadata_multiple_outputs_incorrect_output(self):
+    inputs1 = keras.Input(shape=(10,), name='model_input')
+    x = keras.layers.Dense(32, activation='relu')(inputs1)
+    x = keras.layers.Dense(32, activation='relu')(x)
+    outputs1 = keras.layers.Dense(1, activation='sigmoid')(x)
+    outputs2 = keras.layers.Dense(1, activation='relu')(x)
+    fun_model = keras.Model(
+        inputs=[inputs1], outputs=[outputs1, outputs2], name='fun')
+
+    with self.assertRaisesRegex(ValueError,
+                                'Provided output is not one of model outputs'):
+      keras_metadata_builder.KerasGraphMetadataBuilder(
+          fun_model, outputs_to_explain=[fun_model.layers[0].output])
 
   def test_save_model_with_metadata(self):
     tf.reset_default_graph()

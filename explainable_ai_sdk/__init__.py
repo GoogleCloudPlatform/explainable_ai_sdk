@@ -19,6 +19,10 @@ import them individually can import this file:
 
 import explainable_ai_sdk
 """
+# Temporary workaround for skimage and Tensorflow import issue in AIP Notebooks.
+import os
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
+
 
 from explainable_ai_sdk.model.model_factory import load_model_from_ai_platform
 from explainable_ai_sdk.model.model_factory import load_model_from_local_path

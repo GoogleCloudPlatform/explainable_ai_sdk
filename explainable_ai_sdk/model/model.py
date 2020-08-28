@@ -19,6 +19,7 @@ import abc
 
 
 
+from explainable_ai_sdk.model import configs
 from explainable_ai_sdk.model import explanation
 
 _ABC = abc.ABCMeta('ABC', (object,), {'__slots__': ()})
@@ -40,11 +41,17 @@ class Model(_ABC):
     pass
 
   @abc.abstractmethod
-  def explain(self, instances):
+  def explain(
+      self,
+      instances,
+      params = None
+  ):
     """Calls explanation services/libraries with the given instances.
 
     Args:
        instances: A list of instances for getting explanations.
+       params: Overridable parameters for the explain call. If not provided,
+         parameters default to what was already set before.
 
     Returns:
        A dictionary to map input to its corresponding list of Explanation

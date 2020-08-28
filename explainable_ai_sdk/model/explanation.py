@@ -74,29 +74,31 @@ class Explanation(object):
         attribution_dict['attributions_by_label'])
     return cls(label_idx_to_attr, instance, modality_input_list_map)
 
-  def get_attribution(self, class_index = None
+  def get_attribution(self, label_index = None
                      ):
     """Returns an object of the attributions.
 
     Args:
-      class_index: If class_index is given, return the attribution of the given
-        class. If not, return the attribution of the class with highest
+      label_index: If label_index is given, return the attribution of the given
+        label. If not, return the attribution of the label with highest
         prediction score.
 
     Returns:
-      The attribution object of a specific class.
+      The attribution object of a specific label.
     """
-    if class_index is None:
-      label_idx_to_attr = self._label_index_to_attributions
-      top_cls_list = label_idx_to_attr.get_top_k_class_index_list()
-      class_index = top_cls_list[0]
+    if label_index is None:
+      label_index = self.get_top_k_indices(1)[0]
 
-    target_class_attr = self._label_index_to_attributions[class_index]
-    return target_class_attr
+    target_label_attr = self._label_index_to_attributions[label_index]
+    return target_label_attr
+
+  def get_top_k_indices(self, k=None):
+    """Returns top k label indices for the given instance in sorted order."""
+    return self._label_index_to_attributions.get_top_k_label_index_list(k)
 
   def feature_importance(
       self,
-      class_index = None,
+      label_index = None,
       modality = constants.ALL_MODALITY):
     """Returns a dict of each feature and the corresponding attribution value.
 
@@ -104,21 +106,22 @@ class Explanation(object):
     sum of all dimensions.
 
     Args:
-      class_index: If class_index is given, return the attribution of the given
-        class. If not, will use the class with highest prediction score.
+      label_index: If label_index is given, return the attribution of the given
+        label. If not, will use the label with highest prediction score.
       modality: Tensor modalities to be considered
-        (numeric/image/categorical/text/all).
+        (numeric/image/categorical/text/tabular/all). Note: tabular modality is
+        considered to be numeric or categorical.
 
     Returns:
       A dictionary of features and corresponding feature attribution values
     """
-    target_class_attr = self.get_attribution(class_index)
+    target_label_attr = self.get_attribution(label_index)
     input_names = self._modality_input_list_map[modality]
-    return target_class_attr.feature_importance(input_names)
+    return target_label_attr.feature_importance(input_names)
 
   def as_tensors(
       self,
-      class_index = None,
+      label_index = None,
       modality = constants.ALL_MODALITY):
     """Returns a dict of each feature and the corresponding raw attributions.
 
@@ -127,51 +130,60 @@ class Explanation(object):
     dimensions.
 
     Args:
-      class_index: If class_index is given, return the attribution of the given
-        class. If not, will use the class with highest prediction score.
+      label_index: If label_index is given, return the attribution of the given
+        label. If not, will use the label with highest prediction score.
       modality: Tensor modalities to be considered
-        (numeric/image/categorical/text/all).
+        (numeric/image/categorical/text/tabular/all). Note: tabular modality is
+        considered to be numeric or categorical.
 
     Returns:
       A dictionary of features and corresponding raw feature attribution values
     """
-    target_class_attr = self.get_attribution(class_index)
+    target_label_attr = self.get_attribution(label_index)
     input_names = self._modality_input_list_map[modality]
-    return target_class_attr.as_tensors(input_names)
+    return target_label_attr.as_tensors(input_names)
 
-  def _print_basic_info(self, class_index = None):
-    """Prints basic information of a specific class.
+  def _print_basic_info(
+      self,
+      label_index = None,
+      print_label_index = True):
+    """Prints basic information of a specific label.
 
     Args:
-      class_index: If class_index is given, return the attribution of the given
-        class. If not, return the attribution of the class with highest
+      label_index: If label_index is given, return the attribution of the given
+        label. If not, return the attribution of the label with highest
         prediction score.
+      print_label_index: If true, print label_index information. This can be
+        used to turn off label_index output in regression models.
     """
-    target_class_attr = self.get_attribution(class_index)
+    target_label_attr = self.get_attribution(label_index)
 
-    print('Label Index %d' % target_class_attr.label_index)
-    print('Example Score: %.4f' % target_class_attr.example_score)
-    print('Baseline Score: %.4f' % target_class_attr.baseline_score)
-    if target_class_attr.approx_error is not None:
-      print('Approximation Error: %.4f' % target_class_attr.approx_error)
+    if print_label_index and (target_label_attr.label_index is not None) and (
+        target_label_attr.label_index != -1):
+      print('Label Index %d' % target_label_attr.label_index)
+    print('Example Score: %.4f' % target_label_attr.example_score)
+    print('Baseline Score: %.4f' % target_label_attr.baseline_score)
+    if target_label_attr.approx_error is not None:
+      print('Approximation Error: %.4f' % target_label_attr.approx_error)
 
-      if target_class_attr.approx_error > APPROX_ERROR_THRESHOLD:
+      if target_label_attr.approx_error > APPROX_ERROR_THRESHOLD:
         print('Warning: Approximation error exceeds 5%.')
 
   def visualize_top_k_features(self,
                                k = 10,
-                               class_index = None,
+                               label_index = None,
                                modality = constants.ALL_MODALITY):
     """Visualizes attributions.
 
     Args:
       k: If k is given, visualize top k features. If it is not given, set k=10
-      class_index: If class_index is given, return the attribution of the given
-        class. If not, will use the class with highest prediction score.
+      label_index: If label_index is given, return the attribution of the given
+        label. If not, will use the label with highest prediction score.
       modality: Tensor modalities to be considered
-        (numeric/image/categorical/text/all).
+        (numeric/image/categorical/text/tabular/all). Note: tabular modality is
+        considered to be numeric or categorical.
     """
-    importance_dict = self.feature_importance(class_index, modality)
+    importance_dict = self.feature_importance(label_index, modality)
     sorted_feature_names = sorted(
         importance_dict, key=importance_dict.get, reverse=True)
 
@@ -191,23 +203,23 @@ class Explanation(object):
       plt.xlabel('Attribution value')
       plt.show()
 
-  def _visualize_image_attributions(self, class_index = None):
+  def _visualize_image_attributions(self, label_index = None):
     """Visualizes image attributions.
 
     Args:
-      class_index: If class_index is given, return the attribution of the given
-        class. If not, will use the class with highest prediction score.
+      label_index: If label_index is given, return the attribution of the given
+        label. If not, will use the label with highest prediction score.
     """
     if (explain_metadata.Modality.IMAGE not in self._modality_input_list_map or
         not self._modality_input_list_map[explain_metadata.Modality.IMAGE]):
       return
-    target_class_attr = self.get_attribution(class_index)
+    target_label_attr = self.get_attribution(label_index)
     input_names = self._modality_input_list_map[explain_metadata.Modality.IMAGE]
     num_features = len(input_names)
 
     if num_features > 0:
       for input_name in input_names:
-        attr_values = target_class_attr.post_processed_attributions
+        attr_values = target_label_attr.post_processed_attributions
         b64str = attr_values[input_name]['b64_jpeg']
         i = base64.b64decode(b64str)
         i = io.BytesIO(i)
@@ -216,38 +228,32 @@ class Explanation(object):
         plt.imshow(i, interpolation='nearest')
         plt.show()
 
-  def _visualize_tabular_attributions(self, class_index = None):
+  def _visualize_tabular_attributions(self, label_index = None):
     """Visualizes tabular attributions.
 
     Args:
-      class_index: If class_index is given, return the attribution of the given
-        class. If not, will use the class with highest prediction score.
+      label_index: If label_index is given, return the attribution of the given
+        label. If not, will use the label with highest prediction score.
     """
-    if (explain_metadata.Modality.CATEGORICAL in self._modality_input_list_map
-        and
-        self._modality_input_list_map[explain_metadata.Modality.CATEGORICAL]):
+    if constants.TABULAR_MODALITY in self._modality_input_list_map:
       self.visualize_top_k_features(
-          k=len(self._modality_input_list_map[
-              explain_metadata.Modality.CATEGORICAL]),
-          class_index=class_index,
-          modality=explain_metadata.Modality.CATEGORICAL)
+          k=len(self._modality_input_list_map[constants.TABULAR_MODALITY]),
+          label_index=label_index,
+          modality=constants.TABULAR_MODALITY)
 
-    if (explain_metadata.Modality.NUMERIC in self._modality_input_list_map and
-        self._modality_input_list_map[explain_metadata.Modality.NUMERIC]):
-      self.visualize_top_k_features(
-          k=len(
-              self._modality_input_list_map[explain_metadata.Modality.NUMERIC]),
-          class_index=class_index,
-          modality=explain_metadata.Modality.NUMERIC)
-
-  def visualize_attributions(self, class_index = None):
+  def visualize_attributions(
+      self,
+      label_index = None,
+      print_label_index = True):
     """Visualizes all types of attributions.
 
     Args:
-      class_index: If class_index is given, return the attribution of the given
-        class. If not, will use the class with highest prediction score.
+      label_index: If label_index is given, return the attribution of the given
+        label. If not, will use the label with highest prediction score.
+      print_label_index: If true, print label_index information. This can be
+        used to turn off label_index output in regression models.
     """
     # Print basic information
-    self._print_basic_info(class_index)
-    self._visualize_tabular_attributions(class_index)
-    self._visualize_image_attributions(class_index)
+    self._print_basic_info(label_index, print_label_index)
+    self._visualize_tabular_attributions(label_index)
+    self._visualize_image_attributions(label_index)

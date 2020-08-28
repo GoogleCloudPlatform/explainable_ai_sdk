@@ -39,14 +39,19 @@ class UtilsTest(tf.test.TestCase):
             'img': {
                 'input_tensor_name': 't:0',
                 'modality': 'image'
+            },
+            'numer': {
+                'input_tensor_name': 'n:0',
+                'modality': 'numeric'
             }
         },
         'outputs': [],
         'framework': 'tensorflow2'
     })
     modalities = utils.get_modality_input_list_map(md)
-    self.assertLen(modalities[constants.ALL_MODALITY], 4)
+    self.assertLen(modalities[constants.ALL_MODALITY], 5)
     self.assertLen(modalities[explain_metadata.Modality.CATEGORICAL], 3)
+    self.assertLen(modalities[constants.TABULAR_MODALITY], 4)
     self.assertLen(modalities[explain_metadata.Modality.IMAGE], 1)
 
 if __name__ == '__main__':

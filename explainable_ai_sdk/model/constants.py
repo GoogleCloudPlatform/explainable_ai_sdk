@@ -18,9 +18,11 @@ from explainable_ai_sdk import version
 
 # Modality related constants
 ALL_MODALITY = 'all'
+TABULAR_MODALITY = 'tabular'
 
 # HTTP related constants
 DEFAULT_TIMEOUT = 1200
 USER_AGENT_FOR_CAIP_TRACKING = 'xai-sdk/' + version.__version__
 
-CAIP_API_ENDPOINT = 'https://ml.googleapis.com/v1/'
+CAIP_API_ENDPOINT = 'https://ml.googleapis.com/'
+CAIP_API_ENDPOINT_VERSION = 'v1'

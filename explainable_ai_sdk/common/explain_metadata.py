@@ -204,6 +204,9 @@ class InputMetadataKeys(utils.FieldKeys):
     WEIGHT_DENSE_SHAPE_NAME: Dense shape of the weight values.
     WEIGHT_DENSE_SHAPE_DTYPE: Dtype of weight dense shape values.
     GROUP_NAME: Name of the group that the input belongs to.
+    IS_SEQUENTIAL: Whether this input feature represents a sequential feature.
+      Sequential features cannot be evaluated in a batched manner - a batch of
+      inputs is considered a sequence of input values for a single prediction.
   """
   VISUALIZATION = "visualization"
   INPUT_TENSOR_NAME = "input_tensor_name"
@@ -229,6 +232,7 @@ class InputMetadataKeys(utils.FieldKeys):
   WEIGHT_DENSE_SHAPE_NAME = "weight_dense_shape_name"
   WEIGHT_DENSE_SHAPE_DTYPE = "weight_dense_shape_dtype"
   GROUP_NAME = "group_name"
+  IS_SEQUENTIAL = "is_sequential"
 
 
 class DeprecatedInputMetadataKeys(utils.FieldKeys):
@@ -453,7 +457,8 @@ class InputMetadata(object):
                weight_dense_shape_name = None,
                weight_dense_shape_dtype = None,
                visualization = None,
-               group_name = None):
+               group_name = None,
+               is_sequential = False):
     self._name = name
     self._input_tensor_name = input_tensor_name
     self._input_tensor_dtype = input_tensor_dtype
@@ -479,6 +484,7 @@ class InputMetadata(object):
     self._weight_dense_shape_dtype = weight_dense_shape_dtype
     self._visualization = visualization
     self._group_name = group_name
+    self._is_sequential = is_sequential
 
     self._validate()
     self._tensor_name_to_dtype_mapping = self._get_tensor_name_to_dtype_mapping(
@@ -599,6 +605,9 @@ class InputMetadata(object):
         self._group_name, six.string_types):
       raise ValueError("group_name must be of type string. "
                        "Got %s" % type(self._group_name))
+    if self._is_sequential not in (True, False):
+      raise ValueError("Feature property 'is_sequential' invalid, "
+                       "must be either true or false.")
     self._validate_visualization()
     self._validate_baselines()
 
@@ -768,6 +777,10 @@ class InputMetadata(object):
   @property
   def domain(self):
     return self._domain
+
+  @property
+  def is_sequential(self):
+    return self._is_sequential
 
   @property
   def gradient_tensor_names(self):
@@ -1015,6 +1028,8 @@ class InputMetadata(object):
         InputMetadataKeys.GROUP_NAME:
             self.group_name
     }
+    if self.is_sequential:
+      input_dict[InputMetadataKeys.IS_SEQUENTIAL] = True
     if remove_empty_vals:
       input_dict = _remove_empty_vals(input_dict)
     return input_dict

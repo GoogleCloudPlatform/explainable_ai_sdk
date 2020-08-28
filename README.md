@@ -1,60 +1,94 @@
 # Explainable AI SDK
 
-This is an SDK for
-[Google Cloud Explainable AI](https://cloud.google.com/explainable-ai) service.
-Explainable AI SDK helps users build [explanation metadata](https://cloud.google.com/ai-platform/prediction/docs/ai-explanations/preparing-metadata) for their models and visualize feature
-attributions returned from the model.
+This is a Python SDK for
+[Google Cloud Explainable AI](https://cloud.google.com/explainable-ai), an
+explanation service that provides insight into machine learning models deployed
+on [AI Platform](https://cloud.google.com/ai-platform). The Explainable AI SDK
+helps to visualize explanation results, and to define _explanation metadata_ for
+the explanation service.
+
+Explanation metadata tells the explanation service which of your model's inputs
+and outputs to use for your explanation request. The SDK has metadata builders
+that help you to build and save an explanation metadata file before you deploy
+your model to AI Platform.
+
+The Explainable AI SDK also helps you to visualize feature attribution results
+on models deployed to AI Platform.
 
 ## Installation
 
-Explainable AI SDK are available directly on [Google Cloud AI Platform Notebooks](https://cloud.google.com/ai-platform-notebooks).
-For other platforms, you can install it via
+The Explainable AI SDK supports models built with:
 
-```shell
-pip install explainable-ai-sdk
-```
+- Python 3.7 and later
+- TensorFlow 1.15 or TensorFlow 2.x.
 
-Note that we require shell enviroment that has [Google Cloud SDK](https://cloud.google.com/sdk/docs/quickstarts) installed.
-Otherwise, the SDK will not be able to communicate with the AI Platform.
+The Explainable AI SDK is preinstalled on
+[Google Cloud AI Platform Notebooks](https://cloud.google.com/ai-platform-notebooks)
+images.
 
-## Usage
+For other platforms:
 
-### Metadata Builders
-Users of the library can create explanation metadata JSON files using metadata
-builders. There are various metadata builders for Tensorflow V1 and V2 in their
-respective folders.
+1. Make sure that you have
+   [installed Cloud SDK](https://cloud.google.com/sdk/docs/quickstarts). In
+   order to communicate with Cloud AI Platform, the Explainable AI SDK requires
+   a shell environment with Cloud SDK installed.
 
-#### Tensorflow v1
-We provide three different builders catering to three main
-Tensorflow interfaces: **Estimators**, **Keras models**, and **models built with
-the low-level API (ops and tensors)**. An example usage for a Keras model would
-be as follows:
+1. Install the Explainable AI SDK:
+
+    ```shell
+    pip install explainable-ai-sdk
+    ```
+
+## Metadata Builders
+
+After you build your model, you use a metadata builder to create your
+explanation metadata. This produces a JSON file that is used for model
+deployment on AI Platform.
+
+There are different metadata builders for TensorFlow 1.x and 2.x in
+their respective folders.
+
+### TensorFlow 2.x
+
+For TensorFlow 2.x, there is one metadata builder that takes a
+**SavedModel**, and uploads both your model and metadata file to Cloud Storage.
+
+For example:
 
 ```python
+from explainable_ai_sdk.metadata.tf.v2 import SavedModelMetadataBuilder
+builder = SavedModelMetadataBuilder(
+    model_path)
+builder.save_model_with_metadata('gs://my_bucket/model')  # Save the model and the metadata.
+```
+
+### TensorFlow 1.x
+
+For TensorFlow 1.x, the Explainable AI SDK supports models built with Keras,
+Estimator and the low-level TensorFlow API. There is a different metadata
+builder for each of these three TensorFlow APIs. An example usage for a Keras
+model would be as follows:
+
+```python
+from explainable_ai_sdk.metadata.tf.v1 import KerasGraphMetadataBuilder
 my_model = keras.models.Sequential()
 my_model.add(keras.layers.Dense(32, activation='relu', input_dim=10))
 my_model.add(keras.layers.Dense(32, activation='relu'))
 my_model.add(keras.layers.Dense(1, activation='sigmoid'))
-builder = explainable_ai_sdk.metadata.tf.v1.KerasGraphMetadataBuilder(my_model)
-builder.get_metadata(). # To get a dictionary representation of the metadata.
+builder = KerasGraphMetadataBuilder(my_model)
 builder.save_model_with_metadata('gs://my_bucket/model')  # Save the model and the metadata.
 ```
 
-#### Tensorflow v2
-There is a single metadata builder that takes a **saved model**.
-Example usage would be as follows:
-
-```python
-builder = explainable_ai_sdk.metadata.tf.v2.SavedModelMetadataBuilder(
-        model_path)
-builder.get_metadata(). # To get a dictionary representation of the metadata.
-builder.save_model_with_metadata('gs://my_bucket/model')  # Save the model and the metadata.
-```
+For examples using the Estimator and TensorFlow Core builders, refer to the
+[v1 README file](./explainable_ai_sdk/metadata/tf/v1/README.md).
 
 ### Making Predict and Explain Calls
-We offer a model interface to communicate with the deployed model more easily.
-With this interface, users can call `predict()` and `explain()` functions to get
-predictions and explanations for the provided data points, respectively.
+
+The Explainable AI SDK includes a model interface to help you communicate with
+the deployed model more easily. With this interface, you can call `predict()`
+and `explain()` functions to get predictions and explanations for the provided
+data points, respectively.
+
 Here is an example snippet for using the model interface:
 
 ```python
@@ -72,21 +106,21 @@ explanations = m.explain(instances)
 ```
 
 ### Explanation, Attribution, and Visualization
-What's returned from `explain()` function is a list of `Explanation` objects --
-one `Explanation` per input instance. This object aims to make interactions with
-returned attributions more easily. Here are a few usages of the `Explanation`
-object.
 
-**Note**: The `feature_importance` and `as_tensors` functions are only
-working on tabular models now due to the limited payload size. We are working on
-making it available on image models.**
+The `explain()` function returns a list of `Explanation` objects --
+one `Explanation` per input instance. This object makes it easier to interact
+with returned attributions. You can use the `Explanation` object to get
+feature importance and raw attributions, and to visualize attributions.
+
+**Note**: Currently, the `feature_importance()` and `as_tensors()` functions
+only work on tabular models, due to the limited payload size. We are working on
+making both functions available for image models.**
 
 #### Get feature importance
 
-The `feature_importance` function will return the imporance of each feature
+The `feature_importance()` function returns the imporance of each feature
 based on feature attributions. Note that if a feature has more than one
-dimension (e.g., an image has RGB channels in each pixel, the importance is
-calculated based on the aggregation).
+dimension, the importance is calculated based on the aggregation.
 
 ```python
 explanations[0].feature_importance()
@@ -94,8 +128,8 @@ explanations[0].feature_importance()
 
 #### Get raw attributions
 
-If users want to get feature attributions over each dimension, `as_tensors`
-function will return the raw attributions as tensors.
+To get feature attributions over each dimension, use the `as_tensors()`
+function to return the raw attributions as tensors.
 
 ```python
 explanations[0].as_tensors()
@@ -103,20 +137,28 @@ explanations[0].as_tensors()
 
 #### Visualize attributions
 
-The `Explanation` class provides a way to let users visualize attributions
-directly. Users can simply call `visualize_attributions` to see feature
-attributions. This works for both image and tabular models.
+The `Explanation` class allows you to visualize feature attributions directly.
+For both image and tabular models, you can call `visualize_attributions()`
+to see feature attributions.
 
 ```python
 explantions[0].visualize_attributions()
 ```
 
+Here is an example visualization:
+![An attribution visualization for a tabular model](http://services.google.com/fh/files/misc/explainable_ai_sdk_tabular_attributions_visualzation.png)
 
 ## Caveats
-* This library works with (and depends) on either major version of Tensorflow.
-* `metadata/tf/v1` and `metadata/tf/v2` folders shouldn't be imported in the
-same python runtime to avoid unintended side effects of mixing Tensorflow 1 and
-2 behavior.
+
+* This library works with (and depends) on either major version of TensorFlow.
+* Do not import the `metadata/tf/v1` and `metadata/tf/v2` folders in the
+  same Python runtime. If you do, there may be unintended side effects of mixing
+  TensorFlow 1.x and 2.x behavior.
+
+## Explainable AI documentation
+
+For more information about Explainable AI, refer to the
+[Explainable AI documentation](https://cloud.google.com/ai-platform/prediction/docs/ai-explanations/overview).
 
 ## License
 

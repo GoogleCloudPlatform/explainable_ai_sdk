@@ -15,4 +15,4 @@
 
 """Version of Explainable AI SDK."""
 
-__version__ = "1.0"
+__version__ = "1.0.5"

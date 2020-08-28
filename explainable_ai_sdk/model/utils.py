@@ -43,7 +43,12 @@ def get_modality_input_list_map(
           modality_input_list_map[explain_metadata.Modality.CATEGORICAL].append(
               feature_name)
           modality_input_list_map[constants.ALL_MODALITY].append(feature_name)
+          modality_input_list_map[constants.TABULAR_MODALITY].append(
+              feature_name)
       else:
+        if (input_modality in (explain_metadata.Modality.NUMERIC,
+                               explain_metadata.Modality.CATEGORICAL)):
+          modality_input_list_map[constants.TABULAR_MODALITY].append(input_name)
         modality_input_list_map[input_modality].append(input_name)
         modality_input_list_map[constants.ALL_MODALITY].append(input_name)
   return modality_input_list_map
