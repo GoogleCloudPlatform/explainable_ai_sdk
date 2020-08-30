@@ -146,7 +146,9 @@ explantions[0].visualize_attributions()
 ```
 
 Here is an example visualization:
+
 ![An attribution visualization for a tabular model](http://services.google.com/fh/files/misc/explainable_ai_sdk_tabular_attributions_visualzation.png)
+
 
 ## Caveats
 

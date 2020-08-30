@@ -1,5 +1,6 @@
 tensorflow>=1.15.0
 matplotlib>=3.2.2
+numpy<1.19.0
 requests>=2.24.0
 
 google.auth>=1.14.1
