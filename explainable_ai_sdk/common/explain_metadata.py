@@ -1,4 +1,4 @@
-# Copyright 2020 Google LLC
+# Copyright 2021 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,23 +13,20 @@
 # limitations under the License.
 
 """Definitions for explain metadata and helper functions to read from file."""
-from __future__ import absolute_import
-from __future__ import division
-
-from __future__ import print_function
 
 import collections
 import copy
 import json
+from typing import Any, Dict, List, Optional, Tuple
 
-
-import six
+from absl import logging
 import tensorflow as tf
 
 from explainable_ai_sdk.common import constants
 from explainable_ai_sdk.common import semver
 from explainable_ai_sdk.common import types
 from explainable_ai_sdk.common import utils
+from explainable_ai_sdk.common import validation_utils
 
 
 class Modality(utils.FieldKeys):
@@ -38,7 +35,7 @@ class Modality(utils.FieldKeys):
   Attributes:
     NUMERIC: Numeric values, scalar or vector.
     IMAGE: Image.
-    TEXT: Text.
+    TEXT: str.
     STRUCTURED: Structured data organized with keyed values.
     CATEGORICAL: Values that are part of categorical features - this could be
       any data type that can be compared for equality, e.g. string or array
@@ -71,7 +68,7 @@ class FeatureDomain(utils.FieldKeys):
 
 
 class Encoding(utils.FieldKeys):
-  """How features are enEnumcoded into input tensor.
+  """How features are encoded into input tensor.
 
   Attributes:
     IDENTITY: The tensor represents one feature.
@@ -119,7 +116,7 @@ class Encoding(utils.FieldKeys):
 class Framework(utils.FieldKeys):
   """Frameworks currently supported for our library.
 
-  Currently, there is no version in frameoworks.
+  Currently, there is no version in frameworks.
 
   Attributes:
     TENSORFLOW: TensorFlow.
@@ -149,6 +146,7 @@ class MetadataKeys(utils.FieldKeys):
   OUTPUTS = "outputs"
   EMBEDDINGS = "embeddings"
   SIGDEF_INPUTS = "sigdef_inputs"
+  SERVING_SIGDEF_KEY = "serving_sigdef_key"
   PREPARER_VERSION = "preparer_version"
   FRAMEWORK = "framework"
   TAGS = "tags"
@@ -184,7 +182,7 @@ class InputMetadataKeys(utils.FieldKeys):
     ENCODED_TENSOR_DTYPE: Dtype of encoded tensor.
     ENCODED_BASELINES: A list of baselines used for attribution explanation.
       The shape of each baseline should match the shape of the encoded tensor.
-      If a scalar is provided, we braodcast to the same shape as the
+      If a scalar is provided, we broadcast to the same shape as the
       encoded tensor.
     MODALITY: Modality of the InputMetadata.
       (One of explain_metadata.Modality)
@@ -289,8 +287,8 @@ class AttributionVisualizationTypes(utils.FieldKeys):
   """Valid values for the TYPE field in InputMetadata.visualization.
 
   Attributes:
-    PIXELS: Pixels.
-    OUTLINES: Outlines.
+    PIXELS: pixels.
+    OUTLINES: outlines.
   """
   PIXELS = constants.PIXELS
   OUTLINES = constants.OUTLINES
@@ -310,11 +308,11 @@ class PixelsVisualizationKeys(utils.FieldKeys):
     CLIP_BELOW_PERCENTILE: Attributions below this percentile will be
       ignored and considered as outliers. Must be in range [0, 100] and less
       than CLIP_ABOVE_PERCENTILE.
-    OVERLAY_TYPE: How to overlay the visualized attributions over input image.
-      The value associated with this key must map to those defined under
+    OVERLAY_TYPE: How to overlay the visualized attributions over the input
+      image. The value associated with this key must map to those defined under
       "OverlayType" below.
     OVERLAY_MULTIPLIER: A multiplier in range [0, 1] indicating the fraction
-      of the input image to include in the overlayed visualization (the other
+      of the input image to include in the overlaid visualization (the other
       fraction, i.e. 1 - overlay_multiplier, applies to the attributions).
   """
   # Whether to show positive attributions, negative attributions or both.
@@ -331,7 +329,7 @@ class PixelsVisualizationKeys(utils.FieldKeys):
   CLIP_ABOVE_PERCENTILE = "clip_above_percentile"
   CLIP_BELOW_PERCENTILE = "clip_below_percentile"
 
-  # How to overlay the visualized attributions over input image.
+  # How to overlay the visualized attributions over the input image.
   OVERLAY_TYPE = "overlay_type"
   OVERLAY_MULTIPLIER = "overlay_multiplier"
 
@@ -354,7 +352,7 @@ class OutlinesVisualizationKeys(utils.FieldKeys):
       The value associated with this key must map to those defined under
       "OverlayType" below.
     OVERLAY_MULTIPLIER: A multiplier in range [0, 1] indicating the fraction
-      of the input image to include in the overlayed visualization (the other
+      of the input image to include in the overlaid visualization (the other
       fraction, i.e. 1 - overlay_multiplier, applies to the attributions).
   """
   # Whether to show positive attributions, negative attributions or both.
@@ -384,13 +382,13 @@ class OverlayType(utils.FieldKeys):
   # The attributions are shown on top of the original image.
   # The green channel is used for positive attributions and red channel is used
   # for the negative attributions. The PolarityType is used to select which type
-  # of attributiosn to visualize - positive, negative or both.
+  # of attributions to visualize - positive, negative or both.
   OVERLAY_ON_ORIGINAL_IMAGE = "original"
 
   # The attributions are shown on top of grayscaled version of the original
   # image. The green channel is used for positive attributions and red channel
   # is used for the negative attributions. The PolarityType is used to select
-  # which type of attributiosn to visualize - positive, negative or both.
+  # which type of attributions to visualize - positive, negative or both.
   OVERLAY_ON_GRAYSCALE_IMAGE = "grayscale"
 
   # The attributions are used as a mask to reveal predictive parts of the image
@@ -421,7 +419,7 @@ class AttributionVisualizationKeys(object):
   }
 
   @classmethod
-  def values(cls, visualization_type = None):
+  def values(cls, visualization_type: str = None):
     """Returns the set of valid keys under InputMetadata.visualization."""
     if not visualization_type:
       return AttributionVisualizationKeys.REQUIRED_KEYS
@@ -433,32 +431,32 @@ class InputMetadata(object):
   """Metadata for holding input information."""
 
   def __init__(self,
-               name,
-               input_tensor_name = None,
-               input_tensor_dtype = None,
-               domain = None,
-               encoding = Encoding.IDENTITY,
-               indices_tensor_name = None,
-               indices_tensor_dtype = None,
-               dense_shape_tensor_name = None,
-               dense_shape_tensor_dtype = None,
-               input_baselines = None,
-               index_feature_mapping = None,
-               encoded_tensor_name = None,
-               encoded_tensor_dtype = None,
-               encoded_baselines = None,
-               modality = Modality.NUMERIC,
-               gradient_tensor_names = None,
-               gradient_tensor_dtypes = None,
-               weight_values_name = None,
-               weight_values_dtype = None,
-               weight_indices_name = None,
-               weight_indices_dtype = None,
-               weight_dense_shape_name = None,
-               weight_dense_shape_dtype = None,
-               visualization = None,
-               group_name = None,
-               is_sequential = False):
+               name: str,
+               input_tensor_name: str = None,
+               input_tensor_dtype: str = None,
+               domain: Dict[str, Any] = None,
+               encoding: str = Encoding.IDENTITY,
+               indices_tensor_name: str = None,
+               indices_tensor_dtype: str = None,
+               dense_shape_tensor_name: str = None,
+               dense_shape_tensor_dtype: str = None,
+               input_baselines: List[Any] = None,
+               index_feature_mapping: List[Any] = None,
+               encoded_tensor_name: str = None,
+               encoded_tensor_dtype: str = None,
+               encoded_baselines: List[Any] = None,
+               modality: str = Modality.NUMERIC,
+               gradient_tensor_names: Dict[str, str] = None,
+               gradient_tensor_dtypes: Dict[str, str] = None,
+               weight_values_name: str = None,
+               weight_values_dtype: str = None,
+               weight_indices_name: str = None,
+               weight_indices_dtype: str = None,
+               weight_dense_shape_name: str = None,
+               weight_dense_shape_dtype: str = None,
+               visualization: Dict[str, str] = None,
+               group_name: str = None,
+               is_sequential: bool = False):
     self._name = name
     self._input_tensor_name = input_tensor_name
     self._input_tensor_dtype = input_tensor_dtype
@@ -486,6 +484,12 @@ class InputMetadata(object):
     self._group_name = group_name
     self._is_sequential = is_sequential
 
+    if (self.visualization and
+        AttributionVisualizationRequiredKeys.TYPE in self.visualization):
+      # making the visualization accept both outlines/pixels and Outlines/Pixels
+      viz_type = self.visualization[AttributionVisualizationRequiredKeys.TYPE]
+      self.visualization[
+          AttributionVisualizationRequiredKeys.TYPE] = viz_type.lower()
     self._validate()
     self._tensor_name_to_dtype_mapping = self._get_tensor_name_to_dtype_mapping(
     )
@@ -494,167 +498,85 @@ class InputMetadata(object):
     """Validates InputExplainMetadata.
 
     InputExplainMetadata should satisfy the following properties.
-    1. Property type valudation.
+    1. Property type validation.
     2. If encoded_baselines is present input_baselines should not be.
     """
-    # Validation on type
-    if not isinstance(self._name, six.string_types):
-      raise ValueError("name must be of type string. "
-                       "Got %s." % type(self._name))
-    if self._input_tensor_name is not None and not isinstance(
-        self._input_tensor_name, six.string_types):
-      raise ValueError("input_tensor_name must be of type string. "
-                       "Got %s." % type(self._input_tensor_name))
-    if self._input_tensor_dtype is not None and not isinstance(
-        self._input_tensor_dtype, six.string_types):
-      raise ValueError("input_tensor_dtype must be of type string. "
-                       "Got %s." % type(self._input_tensor_dtype))
-    if self._encoding not in Encoding.values():
-      raise ValueError("encoding not in encoding type %s. "
-                       "Got %s." % (Encoding.values(), self._encoding))
-    if self._indices_tensor_name is not None and not isinstance(
-        self._indices_tensor_name, six.string_types):
-      raise ValueError("indices_tensor_name must be of type string. "
-                       "Got %s" % type(self._indices_tensor_name))
-    if self._indices_tensor_dtype is not None and not isinstance(
-        self._indices_tensor_dtype, six.string_types):
-      raise ValueError("indices_tensor_dtype must be of type string. "
-                       "Got %s" % type(self._indices_tensor_dtype))
-    if self._dense_shape_tensor_name is not None and not isinstance(
-        self._dense_shape_tensor_name, six.string_types):
-      raise ValueError("dense_shape_tensor_name must be of type string. "
-                       "Got %s" % type(self._dense_shape_tensor_name))
-    if self._dense_shape_tensor_dtype is not None and not isinstance(
-        self._dense_shape_tensor_dtype, six.string_types):
-      raise ValueError("dense_shape_tensor_dtype must be of type string. "
-                       "Got %s" % type(self._dense_shape_tensor_dtype))
-    if self._input_baselines is not None and not isinstance(
-        self._input_baselines, list):
-      raise ValueError("input_baselines must be of type list. "
-                       "Got %s." % type(self._input_baselines))
+    self._validate_type_and_enum()
+
+    self._validate_index_feature_mapping()
+
+    if self._domain is not None:
+      self._validate_domain()
+
+    self._validate_tensors()
+
+    self._validate_baselines()
+
+  def _validate_type_and_enum(self):
+    validation_utils.validate_object_init_type_hint(self)
+    validation_utils.validate_is_in(self._encoding, "encoding",
+                                    Encoding.values(), "InputMetadata")
+    validation_utils.validate_is_in(self._modality, "modality",
+                                    Modality.values(), "InputMetadata")
+
+  def _validate_index_feature_mapping(self):
+    """Validates index_feature_mapping related fields in InputExplainMetadata."""
+    logging.debug(
+        "XAI Validation :: Metadata: [InputMetadata] "
+        "`index_feature_mapping` should not contain duplicate features.")
     if self._index_feature_mapping is not None:
-      if not isinstance(self._index_feature_mapping, list):
-        raise ValueError(
-            "index_feature_mapping must be of type list. "
-            "Got %s." % type(self._index_feature_mapping))
       if len(self._index_feature_mapping) != len(
           set(self._index_feature_mapping)):
         raise ValueError("index_feature_mapping contains duplicate features.")
-    if self._encoded_tensor_name is not None and not isinstance(
-        self._encoded_tensor_name, six.string_types):
-      raise ValueError("encoded_tensor_name must be of type string. "
-                       "Got %s." % type(self._encoded_tensor_name))
-    if self._encoded_tensor_dtype is not None and not isinstance(
-        self._encoded_tensor_dtype, six.string_types):
-      raise ValueError("encoded_tensor_name must be of type string. "
-                       "Got %s." % type(self._encoded_tensor_dtype))
-    if self._encoded_baselines is not None and not isinstance(
-        self._encoded_baselines, list):
-      raise ValueError("encoded_baselines must be of type list. "
-                       "Got %s" % type(self._encoded_baselines))
-    if self._modality is not None and self._modality not in Modality.values():
-      raise ValueError("modality not in modality %s. "
-                       "Got %s." % (Modality.values(), self._modality))
-    if self._domain is not None:
-      self._validate_domain()
-    if self._gradient_tensor_names is not None and not isinstance(
-        self._gradient_tensor_names, dict):
-      raise ValueError("gradient_tensor_names must be of type dict. "
-                       "Got %s" % type(self._gradient_tensor_names))
-    if self._gradient_tensor_dtypes is not None and not isinstance(
-        self._gradient_tensor_dtypes, dict):
-      raise ValueError("gradient_tensor_dtypes must be of type dict. "
-                       "Got %s" % type(self._gradient_tensor_dtypes))
+    elif self._encoding in {
+        Encoding.BAG_OF_FEATURES, Encoding.BAG_OF_FEATURES_SPARSE,
+        Encoding.INDICATOR}:
+      raise ValueError(
+          "index_feature_mapping must be provided when encoding is %s." %
+          self._encoding)
+
+  def _validate_tensors(self):
+    """Validates tensor related fields in InputExplainMetadata."""
+    logging.debug("XAI Validation :: Metadata: [InputMetadata] "
+                  "Keys in `gradient_tensor_names` should match keys in "
+                  "`gradient_tensor_dtypes`.")
     if self._gradient_tensor_names and self._gradient_tensor_dtypes and set(
         self._gradient_tensor_names.keys()) != set(
             self._gradient_tensor_dtypes.keys()):
       raise ValueError("keys in gradient_tensor_names does not match keys in "
                        "gradient_tensor_dtypes.")
-    if self._weight_values_name is not None and not isinstance(
-        self._weight_values_name, six.string_types):
-      raise ValueError("weight_values_name must be of type string. "
-                       "Got %s" % type(self._weight_values_name))
-    if self._weight_values_dtype is not None and not isinstance(
-        self._weight_values_dtype, six.string_types):
-      raise ValueError("weight_values_dtype must be of type string. "
-                       "Got %s" % type(self._weight_values_dtype))
-    if self._weight_indices_name is not None and not isinstance(
-        self._weight_indices_name, six.string_types):
-      raise ValueError("weight_indices_name must be of type string. "
-                       "Got %s" % type(self._weight_indices_name))
-    if self._weight_indices_dtype is not None and not isinstance(
-        self._weight_indices_dtype, six.string_types):
-      raise ValueError("weight_indices_dtype must be of type string. "
-                       "Got %s" % type(self._weight_indices_dtype))
-    if self._weight_dense_shape_name is not None and not isinstance(
-        self._weight_dense_shape_name, six.string_types):
-      raise ValueError("weight_dense_shape_name must be of type string. "
-                       "Got %s" % type(self._weight_dense_shape_name))
-    if self._weight_dense_shape_dtype is not None and not isinstance(
-        self._weight_dense_shape_dtype, six.string_types):
-      raise ValueError("weight_dense_shape_dtype must be of type string. "
-                       "Got %s" % type(self._weight_dense_shape_dtype))
+    logging.debug("XAI Validation :: Metadata: [InputMetadata] All weight "
+                  "tensors (values, indices, dense_shape) or none should "
+                  "present.")
     if not ((self._weight_indices_name is not None and
-             self._weight_indices_name is not None and
+             self._weight_values_name is not None and
              self._weight_dense_shape_name is not None) or
-            (not self._weight_indices_name and not self._weight_indices_name and
+            (not self._weight_indices_name and not self._weight_values_name and
              not self._weight_dense_shape_name)):
       raise ValueError("You must provide all weight tensors (values, indices, "
                        "dense_shape) or none for the feature %s." % self._name)
-    if self._group_name is not None and not isinstance(
-        self._group_name, six.string_types):
-      raise ValueError("group_name must be of type string. "
-                       "Got %s" % type(self._group_name))
-    if self._is_sequential not in (True, False):
-      raise ValueError("Feature property 'is_sequential' invalid, "
-                       "must be either true or false.")
-    self._validate_visualization()
-    self._validate_baselines()
-
-  def _validate_visualization(self):
-    """Checks that the visualization property has valid values."""
-    if not self._visualization:
-      return  # Visualization config not provided.
-
-    # Check that visualization config is a dict.
-    if not isinstance(self._visualization, dict):
-      raise ValueError("visualization params must be specified as a dictionary "
-                       "string keys and values.")
-    # Verify that all required keys are set.
-    required_keys_not_set = (
-        set(AttributionVisualizationKeys.values()).difference(
-            set(self._visualization.keys())))
-    if required_keys_not_set:
-      raise ValueError("Required key(s) not specified in 'visualization': %s." %
-                       repr(required_keys_not_set))
-    # Check that the TYPE key has a valid value.
-    viz_type = self._visualization[AttributionVisualizationRequiredKeys.TYPE]
-    if viz_type not in AttributionVisualizationTypes.values():
-      raise ValueError(
-          "Invalid TYPE provided for visualization. Must be one of %s." %
-          repr(AttributionVisualizationTypes.values()))
-    # Check that all keys set under visualization correspond to the expected
-    # set of keys for the type of visualization being configured.
-    invalid_keys_provided = set(self._visualization.keys()).difference(
-        set(AttributionVisualizationKeys.values(viz_type)))
-    if invalid_keys_provided:
-      raise ValueError(
-          "Invalid key(s) '%s' provided for visualization '%s'. Must be: %s." %
-          (repr(invalid_keys_provided), viz_type,
-           repr(AttributionVisualizationKeys.values(viz_type))))
 
   def _validate_baselines(self):
-    """# If encoded_baselines is present input_baselines should not be."""
+    """Validates input_baselines and encoded_baselines."""
+    logging.debug("XAI Validation :: Metadata: [InputMetadata] Only one of "
+                  "`encoded_baselines` or `input_baselines` should present.")
     if (self._encoded_baselines is not None and
         self._input_baselines is not None):
       raise ValueError("Got both encoded_baselines and input_baselines "
                        "for input_metadata %s. "
                        "Only one should be present." % self._name)
+    logging.debug(
+        "XAI Validation :: Metadata: [InputMetadata] The number of "
+        "`encoded_baselines` should be at most %d.",
+        constants.MAX_NUM_BASELINES)
     if (self._encoded_baselines is not None and
         len(self._encoded_baselines) > constants.MAX_NUM_BASELINES):
       raise ValueError("Got too many encoded baselines. "
                        "Please limit the number of baselines to %d." %
                        constants.MAX_NUM_BASELINES)
+    logging.debug(
+        "XAI Validation :: Metadata: [InputMetadata] The number of "
+        "`input_baselines` should be at most %d.", constants.MAX_NUM_BASELINES)
     if (self._input_baselines is not None and
         len(self._input_baselines) > constants.MAX_NUM_BASELINES):
       raise ValueError("Got too many input baselines. "
@@ -663,16 +585,28 @@ class InputMetadata(object):
 
   def _validate_domain(self):
     """Validates InputMetadata.DOMAIN config provided by the user."""
-    if not isinstance(self._domain, dict):
-      raise ValueError(
-          "Invalid value provided for %s. Must be a dict. Got %s." %
-          (repr(InputMetadataKeys.DOMAIN), repr(self._domain)))
+    logging.debug(
+        "XAI Validation :: Metadata: [InputMetadata] "
+        "Feature domain `keys` should be a subset of `%s`.",
+        sorted(map(str, set(FeatureDomain.values()))))
     if not set(self._domain.keys()).issubset(set(FeatureDomain.values())):
       raise ValueError(
           "Invalid key '%s' provided for %s." %
           (set(self._domain.keys()).difference(set(
               FeatureDomain.values())), InputMetadataKeys.DOMAIN))
+    self._validate_domain_range()
+
+  def _validate_domain_range(self):
+    """Validates feature domain range in the InputMetadata.DOMAIN config."""
     # Checks range values in the feature domain.
+    logging.debug("XAI Validation :: Metadata: [InputMetadata] Feature domain:"
+                  "Both or none of `min` and `max` should be specified.")
+    logging.debug("XAI Validation :: Metadata: [InputMetadata] Feature domain:"
+                  "Both `min` and `max` should be floats and `min` < `max`.")
+    logging.debug(
+        "XAI Validation :: Metadata: [InputMetadata] "
+        "Feature domain range should only be specified for inputs "
+        "with `%s` encoding.", Encoding.IDENTITY)
     if FeatureDomain.MIN in self._domain or FeatureDomain.MAX in self._domain:
       if (FeatureDomain.MAX not in self._domain or
           FeatureDomain.MIN not in self._domain):
@@ -703,7 +637,9 @@ class InputMetadata(object):
     return self._encoded_tensor_dtype
 
   @encoded_tensor_dtype.setter
-  def encoded_tensor_dtype(self, encoded_tensor_dtype):
+  def encoded_tensor_dtype(self, encoded_tensor_dtype: str):
+    validation_utils.validate_is_instance(encoded_tensor_dtype,
+                                          "encoded_tensor_dtype", str)
     self._encoded_tensor_dtype = encoded_tensor_dtype
 
   @property
@@ -715,7 +651,9 @@ class InputMetadata(object):
     return self._input_tensor_dtype
 
   @input_tensor_dtype.setter
-  def input_tensor_dtype(self, input_tensor_dtype):
+  def input_tensor_dtype(self, input_tensor_dtype: str):
+    validation_utils.validate_is_instance(input_tensor_dtype,
+                                          "input_tensor_dtype", str)
     self._input_tensor_dtype = input_tensor_dtype
 
   @property
@@ -727,7 +665,9 @@ class InputMetadata(object):
     return self._indices_tensor_dtype
 
   @indices_tensor_dtype.setter
-  def indices_tensor_dtype(self, indices_tensor_dtype):
+  def indices_tensor_dtype(self, indices_tensor_dtype: str) -> None:
+    validation_utils.validate_is_instance(indices_tensor_dtype,
+                                          "indices_tensor_dtype", str)
     self._indices_tensor_dtype = indices_tensor_dtype
 
   @property
@@ -739,7 +679,9 @@ class InputMetadata(object):
     return self._dense_shape_tensor_dtype
 
   @dense_shape_tensor_dtype.setter
-  def dense_shape_tensor_dtype(self, dense_shape_tensor_dtype):
+  def dense_shape_tensor_dtype(self, dense_shape_tensor_dtype: str) -> None:
+    validation_utils.validate_is_instance(dense_shape_tensor_dtype,
+                                          "dense_shape_tensor_dtype", str)
     self._dense_shape_tensor_dtype = dense_shape_tensor_dtype
 
   @property
@@ -747,7 +689,9 @@ class InputMetadata(object):
     return self._input_baselines
 
   @input_baselines.setter
-  def input_baselines(self, input_baselines):
+  def input_baselines(self, input_baselines: List[Any]) -> None:
+    validation_utils.validate_is_instance(input_baselines, "input_baselines",
+                                          list)
     self._input_baselines = input_baselines
 
   @property
@@ -755,7 +699,9 @@ class InputMetadata(object):
     return self._encoded_baselines
 
   @encoded_baselines.setter
-  def encoded_baselines(self, encoded_baselines):
+  def encoded_baselines(self, encoded_baselines: List[Any]) -> None:
+    validation_utils.validate_is_instance(encoded_baselines,
+                                          "encoded_baselines", list)
     self._encoded_baselines = encoded_baselines
 
   @property
@@ -771,7 +717,9 @@ class InputMetadata(object):
     return self._modality
 
   @modality.setter
-  def modality(self, modality):
+  def modality(self, modality: str) -> None:
+    validation_utils.validate_is_instance(modality, "modality", str)
+    validation_utils.validate_is_in(modality, "modality", Modality.values())
     self._modality = modality
 
   @property
@@ -791,7 +739,9 @@ class InputMetadata(object):
     return self._gradient_tensor_dtypes
 
   @gradient_tensor_dtypes.setter
-  def gradient_tensor_dtypes(self, gradient_tensor_dtypes):
+  def gradient_tensor_dtypes(self, gradient_tensor_dtypes: Dict[str, str]):
+    validation_utils.validate_is_instance(gradient_tensor_dtypes,
+                                          "gradient_tensor_dtypes", dict)
     self._gradient_tensor_dtypes = gradient_tensor_dtypes
 
   @property
@@ -803,7 +753,9 @@ class InputMetadata(object):
     return self._weight_values_dtype
 
   @weight_values_dtype.setter
-  def weight_values_dtype(self, weight_values_dtype):
+  def weight_values_dtype(self, weight_values_dtype: str) -> None:
+    validation_utils.validate_is_instance(weight_values_dtype,
+                                          "weight_values_dtype", str)
     self._weight_values_dtype = weight_values_dtype
 
   @property
@@ -815,7 +767,9 @@ class InputMetadata(object):
     return self._weight_indices_dtype
 
   @weight_indices_dtype.setter
-  def weight_indices_dtype(self, weight_indices_dtype):
+  def weight_indices_dtype(self, weight_indices_dtype: str) -> None:
+    validation_utils.validate_is_instance(weight_indices_dtype,
+                                          "weight_indices_dtype", str)
     self._weight_indices_dtype = weight_indices_dtype
 
   @property
@@ -827,7 +781,9 @@ class InputMetadata(object):
     return self._weight_dense_shape_dtype
 
   @weight_dense_shape_dtype.setter
-  def weight_dense_shape_dtype(self, weight_dense_shape_dtype):
+  def weight_dense_shape_dtype(self, weight_dense_shape_dtype: str) -> None:
+    validation_utils.validate_is_instance(weight_dense_shape_dtype,
+                                          "weight_dense_shape_dtype", str)
     self._weight_dense_shape_dtype = weight_dense_shape_dtype
 
   @property
@@ -859,7 +815,7 @@ class InputMetadata(object):
     else:
       return next(iter(self._gradient_tensor_names.values()))
 
-  def _get_tensor_name_to_dtype_mapping(self):
+  def _get_tensor_name_to_dtype_mapping(self) -> Dict[str, str]:
     """Get tensor name to dtype mapping for all tensors in InputMetadata.
 
     Returns:
@@ -906,8 +862,8 @@ class InputMetadata(object):
     return self._visualization
 
   @classmethod
-  def from_dict(cls, name, in_dict):
-    """Construct dense input metadata object from ordered python dictionary.
+  def from_dict(cls, name: str, in_dict: Dict[str, Any]) -> "InputMetadata":
+    """Construct a dense input metadata object from an ordered python dictionary.
 
     The input metadata looks like the following:
     (Indicator tensor)
@@ -976,7 +932,7 @@ class InputMetadata(object):
 
     return cls(**kwargs)
 
-  def to_dict(self, remove_empty_vals=True):
+  def to_dict(self, remove_empty_vals=True) -> Dict[str, Any]:
     """Constructs a dict representation of InputMetadata."""
     input_dict = {
         InputMetadataKeys.VISUALIZATION:
@@ -1031,7 +987,7 @@ class InputMetadata(object):
     if self.is_sequential:
       input_dict[InputMetadataKeys.IS_SEQUENTIAL] = True
     if remove_empty_vals:
-      input_dict = _remove_empty_vals(input_dict)
+      input_dict = utils.remove_empty_vals(input_dict)
     return input_dict
 
 
@@ -1039,11 +995,11 @@ class OutputMetadata(object):
   """Metadata for holding a model's output information."""
 
   def __init__(self,
-               name,
-               output_tensor_name = None,
-               output_tensor_dtype = None,
-               index_name_mapping = None,
-               index_name_mapping_key = None):
+               name: str,
+               output_tensor_name: Optional[str] = None,
+               output_tensor_dtype: Optional[str] = None,
+               index_name_mapping: Optional[List[Any]] = None,
+               index_name_mapping_key: Optional[str] = None):
     """Initializes an OutputMetadata object.
 
     Args:
@@ -1065,20 +1021,13 @@ class OutputMetadata(object):
 
   def _validate(self):
     """Validate OutputMetadata."""
-    if not isinstance(self._name, six.string_types):
-      raise ValueError("%s must be of type string." % self._name)
-    if self._output_tensor_name is not None and not isinstance(
-        self._output_tensor_name, six.string_types):
-      raise ValueError("output_tensor_name must be of type string. "
-                       "Got %s." % type(self._output_tensor_name))
-    if self._output_tensor_dtype is not None and not isinstance(
-        self._output_tensor_dtype, six.string_types):
-      raise ValueError("output_tensor_dtype must be of type string. "
-                       "Got %s." % type(self._output_tensor_dtype))
+    validation_utils.validate_object_init_type_hint(self)
+    logging.debug("XAI Validation :: Metadata: [OutputMetadata] "
+                  "`index_feature_mapping` classes should be unique.")
+    logging.debug("XAI Validation :: Metadata: [OutputMetadata] "
+                  "Only one of `index_class_mapping` or "
+                  "`index_name_mapping_key` should present.")
     if self._index_name_mapping is not None:
-      if not isinstance(self._index_name_mapping, list):
-        raise ValueError("index_name_mapping must be of type list. "
-                         "Got %s." % type(self._index_name_mapping))
       if len(self._index_name_mapping) != len(set(self._index_name_mapping)):
         raise ValueError("index_feature_mapping contains duplicate classes.")
       if self._index_name_mapping_key is not None:
@@ -1099,7 +1048,9 @@ class OutputMetadata(object):
     return self._output_tensor_dtype
 
   @output_tensor_dtype.setter
-  def output_tensor_dtype(self, output_tensor_dtype):
+  def output_tensor_dtype(self, output_tensor_dtype: str) -> None:
+    validation_utils.validate_is_instance(output_tensor_dtype,
+                                          "output_tensor_dtype", str)
     self._output_tensor_dtype = output_tensor_dtype
 
   @property
@@ -1110,7 +1061,7 @@ class OutputMetadata(object):
   def index_name_mapping_key(self):
     return self._index_name_mapping_key
 
-  def _get_tensor_name_to_dtype_mapping(self):
+  def _get_tensor_name_to_dtype_mapping(self) -> Dict[str, str]:
     """Get tensor name to dtype mapping for the tensor in OutputMetadata.
 
     Returns:
@@ -1127,7 +1078,7 @@ class OutputMetadata(object):
     return self._tensor_name_to_dtype_mapping
 
   @classmethod
-  def from_dict(cls, name, out_dict):
+  def from_dict(cls, name: str, out_dict: Dict[str, Any]) -> "OutputMetadata":
     """Construct output metadata object from ordered python dictionary.
 
     The output metadata json looks like the following:
@@ -1164,7 +1115,7 @@ class OutputMetadata(object):
 
     return cls(**kwargs)
 
-  def to_dict(self, remove_empty_vals=True):
+  def to_dict(self, remove_empty_vals=True) -> Dict[str, Any]:
     """Constructs a dict representation of OutputMetadata."""
     output_dict = {
         OutputMetadataKeys.OUTPUT_TENSOR_NAME: self.output_tensor_name,
@@ -1173,7 +1124,7 @@ class OutputMetadata(object):
         OutputMetadataKeys.INDEX_NAME_MAPPING_KEY: self.index_name_mapping_key,
     }
     if remove_empty_vals:
-      output_dict = _remove_empty_vals(output_dict)
+      output_dict = utils.remove_empty_vals(output_dict)
     return output_dict
 
 
@@ -1188,9 +1139,9 @@ class EmbeddingMetadata(object):
   """
 
   def __init__(self,
-               name,
-               embedding_tensor_name,
-               embedding_tensor_dtype = None):
+               name: str,
+               embedding_tensor_name: str,
+               embedding_tensor_dtype: Optional[str] = None):
     """Initializes an EmbeddingMetadata object.
 
     Args:
@@ -1207,15 +1158,7 @@ class EmbeddingMetadata(object):
 
   def _validate(self):
     """Validate EmbeddingMetadata."""
-    if not isinstance(self._name, six.string_types):
-      raise ValueError("%s must be of type string." % self._name)
-    if not isinstance(self._embedding_tensor_name, six.string_types):
-      raise ValueError("embedding_tensor_name must be of type string. "
-                       "Got %s." % type(self._embedding_tensor_name))
-    if self._embedding_tensor_dtype is not None and not isinstance(
-        self._embedding_tensor_dtype, six.string_types):
-      raise ValueError("embedding_tensor_dtype must be of type string. "
-                       "Got %s." % type(self._embedding_tensor_dtype))
+    validation_utils.validate_object_init_type_hint(self)
 
   @property
   def name(self):
@@ -1230,10 +1173,12 @@ class EmbeddingMetadata(object):
     return self._embedding_tensor_dtype
 
   @embedding_tensor_dtype.setter
-  def embedding_tensor_dtype(self, embedding_tensor_dtype):
+  def embedding_tensor_dtype(self, embedding_tensor_dtype: str) -> None:
+    validation_utils.validate_is_instance(embedding_tensor_dtype,
+                                          "embedding_tensor_dtype", str)
     self._embedding_tensor_dtype = embedding_tensor_dtype
 
-  def _get_tensor_name_to_dtype_mapping(self):
+  def _get_tensor_name_to_dtype_mapping(self) -> Dict[str, str]:
     """Get tensor name to dtype mapping for the tensor in EmbeddingMetadata.
 
     Returns:
@@ -1250,9 +1195,9 @@ class EmbeddingMetadata(object):
     return self._tensor_name_to_dtype_mapping
 
   @classmethod
-  def from_dict(cls, name,
-                emb_dict):
-    """Construct embedding metadata object from python dictionary.
+  def from_dict(cls, name: str,
+                emb_dict: Dict[str, Any]) -> "EmbeddingMetadata":
+    """Construct an embedding metadata object from a python dictionary.
 
     The embedding metadata json looks like the following:
     {
@@ -1286,7 +1231,7 @@ class EmbeddingMetadata(object):
 
     return cls(**kwargs)
 
-  def to_dict(self, remove_empty_vals=True):
+  def to_dict(self, remove_empty_vals=True) -> Dict[str, Any]:
     """Constructs a dict representation of EmbeddingMetadata."""
     embedding_dict = {
         EmbeddingMetadataKeys.EMBEDDING_TENSOR_NAME:
@@ -1295,7 +1240,7 @@ class EmbeddingMetadata(object):
             self.embedding_tensor_dtype,
     }
     if remove_empty_vals:
-      embedding_dict = _remove_empty_vals(embedding_dict)
+      embedding_dict = utils.remove_empty_vals(embedding_dict)
     return embedding_dict
 
 
@@ -1315,9 +1260,9 @@ class SigDefInputMetadata(object):
   """
 
   def __init__(self,
-               name,
-               sigdef_input_tensor_name = None,
-               sigdef_input_tensor_dtype = None):
+               name: str,
+               sigdef_input_tensor_name: Optional[str] = None,
+               sigdef_input_tensor_dtype: Optional[str] = None):
     """Initializes an SigDefInputMetadata object.
 
     Args:
@@ -1334,16 +1279,7 @@ class SigDefInputMetadata(object):
 
   def _validate(self):
     """Validate SigDefInputMetadata."""
-    if self._name is not None and not isinstance(self._name, six.string_types):
-      raise ValueError("%s must be of type string." % self._name)
-    if self._sigdef_input_tensor_name is not None and not isinstance(
-        self._sigdef_input_tensor_name, six.string_types):
-      raise ValueError("sigdef_input_tensor_name must be of type string. "
-                       "Got %s." % type(self._sigdef_input_tensor_name))
-    if self._sigdef_input_tensor_dtype is not None and not isinstance(
-        self._sigdef_input_tensor_dtype, six.string_types):
-      raise ValueError("sigdef_input_tensor_dtype must be of type string. "
-                       "Got %s." % type(self._sigdef_input_tensor_dtype))
+    validation_utils.validate_object_init_type_hint(self)
 
   @property
   def name(self):
@@ -1358,10 +1294,12 @@ class SigDefInputMetadata(object):
     return self._sigdef_input_tensor_dtype
 
   @sigdef_input_tensor_dtype.setter
-  def sigdef_input_tensor_dtype(self, sigdef_input_tensor_dtype):
+  def sigdef_input_tensor_dtype(self, sigdef_input_tensor_dtype: str) -> None:
+    validation_utils.validate_is_instance(sigdef_input_tensor_dtype,
+                                          "sigdef_input_tensor_dtype", str)
     self._sigdef_input_tensor_dtype = sigdef_input_tensor_dtype
 
-  def _get_tensor_name_to_dtype_mapping(self):
+  def _get_tensor_name_to_dtype_mapping(self) -> Dict[str, str]:
     """Get tensor name to dtype mapping for all tensors in SigDefInputMetadata.
 
     Returns:
@@ -1371,6 +1309,10 @@ class SigDefInputMetadata(object):
     if self._sigdef_input_tensor_name and self._sigdef_input_tensor_dtype:
       tensor_name_to_dtype_mapping.update(
           {self._sigdef_input_tensor_name: self._sigdef_input_tensor_dtype})
+
+    if self._name and self._sigdef_input_tensor_dtype:
+      tensor_name_to_dtype_mapping.update(
+          {self._name: self._sigdef_input_tensor_dtype})
     return tensor_name_to_dtype_mapping
 
   @property
@@ -1378,8 +1320,8 @@ class SigDefInputMetadata(object):
     return self._tensor_name_to_dtype_mapping
 
   @classmethod
-  def from_dict(cls, name,
-                sigdef_in_dict):
+  def from_dict(cls, name: str,
+                sigdef_in_dict: Dict[str, Any]) -> "SigDefInputMetadata":
     """Construct sigdef_input metadata object from ordered python dictionary.
 
     The sigdef_input metadata json looks like the following:
@@ -1391,7 +1333,7 @@ class SigDefInputMetadata(object):
 
     Args:
       name: Output metadata name.
-      sigdef_in_dict: Python dict containing the sigdef_input metadata.
+      sigdef_in_dict: dict containing the sigdef_input metadata.
 
     Returns:
       SigDefInputMetadata object.
@@ -1415,7 +1357,7 @@ class SigDefInputMetadata(object):
 
     return cls(**kwargs)
 
-  def to_dict(self, remove_empty_vals=True):
+  def to_dict(self, remove_empty_vals=True) -> Dict[str, Any]:
     """Constructs a dict representation of SigDefInputMetadata."""
     sigdef_in_dict = {
         SigDefInputMetadataKeys.SIGDEF_INPUT_TENSOR_NAME:
@@ -1424,20 +1366,22 @@ class SigDefInputMetadata(object):
             self.sigdef_input_tensor_dtype,
     }
     if remove_empty_vals:
-      sigdef_in_dict = _remove_empty_vals(sigdef_in_dict)
+      sigdef_in_dict = utils.remove_empty_vals(sigdef_in_dict)
     return sigdef_in_dict
 
 
 class ExplainMetadata(object):
   """Class representing explain metadata."""
 
-  def __init__(self, inputs = None,
-               outputs = None,
-               framework = Framework.TENSORFLOW,
-               sigdef_inputs = None,
-               preparer_version = None,
-               embeddings = None,
-               tags = None):
+  def __init__(
+      self, inputs: Optional[List[InputMetadata]] = None,
+      outputs: Optional[List[OutputMetadata]] = None,
+      framework: Optional[str] = Framework.TENSORFLOW,
+      sigdef_inputs: Optional[List[SigDefInputMetadata]] = None,
+      preparer_version: Optional[semver.SemanticVersion] = None,
+      embeddings: Optional[List[EmbeddingMetadata]] = None,
+      tags: Optional[List[str]] = None,
+      serving_sigdef_key: Optional[str] = None):
     """Creates a ExplainMetadata instance.
 
     Args:
@@ -1448,6 +1392,8 @@ class ExplainMetadata(object):
       preparer_version: Semantic version of the preparer.
       embeddings: List of embedding metadata.
       tags: List of tags to annotate the metadata.
+      serving_sigdef_key: key for serving signature graph. Only used in
+        TF models.
     """
     self._inputs = inputs
     self._outputs = outputs
@@ -1456,6 +1402,7 @@ class ExplainMetadata(object):
     self._framework = framework
     self._tags = tags
     self._sigdef_inputs = [] if sigdef_inputs is None else sigdef_inputs
+    self._serving_sigdef_key = serving_sigdef_key
 
     self._input_tensor_names = self._get_input_tensor_names()
     self._indices_tensor_names = self._get_indices_tensor_names()
@@ -1481,7 +1428,7 @@ class ExplainMetadata(object):
     self._outputs_index_name_mapping = self._get_outputs_index_name_mapping()
     self._explained_tensor_names = self._get_explained_tensor_names()
 
-    # Dictionay of all the tensor name to dtype mapping.
+    # Dictionary of all the tensor names to dtype mapping.
     self._tensor_name_to_dtype_mapping = self._get_tensor_name_to_dtype_mapping(
         )
 
@@ -1554,7 +1501,9 @@ class ExplainMetadata(object):
     return self._preparer_version
 
   @preparer_version.setter
-  def preparer_version(self, preparer_version):
+  def preparer_version(self, preparer_version: semver.SemanticVersion):
+    validation_utils.validate_is_instance(preparer_version, "preparer_version",
+                                          semver.SemanticVersion)
     self._preparer_version = preparer_version
 
   @property
@@ -1569,7 +1518,14 @@ class ExplainMetadata(object):
   def sigdef_inputs(self):
     return self._sigdef_inputs
 
-  def append_sigdef_input(self, sigdef_input):
+  @property
+  def serving_sigdef_key(self):
+    return self._serving_sigdef_key
+
+  def update_serving_sigdef_key(self, serving_key):
+    self._serving_sigdef_key = serving_key
+
+  def append_sigdef_input(self, sigdef_input: SigDefInputMetadata):
     """Append SigDefInputMetadata to ExplainMetadata."""
     if not isinstance(sigdef_input, SigDefInputMetadata):
       raise TypeError("Cannot append sigdef input of type %s." %
@@ -1586,30 +1542,31 @@ class ExplainMetadata(object):
     return self._embeddings_name_mapping.get(name, None)
 
   @property
-  def input_tensor_names(self):
+  def input_tensor_names(self) -> Dict[str, str]:
     return self._input_tensor_names
 
-  def _get_input_tensor_names(self):
+  def _get_input_tensor_names(self) -> Dict[str, str]:
     """Returns all input tensor names in inputs with metadata name as keys."""
     input_tensor_names = {}
     if self._inputs:
       for in_md in self._inputs:
         if in_md.input_tensor_name:
           input_tensor_names[in_md.name] = in_md.input_tensor_name
-        else:
+        elif self.framework not in (Framework.TENSORFLOW,
+                                    Framework.TENSORFLOW2):
           # If tensor name is not provided, it means that the model
           # can accept md name directly for evaluations. We'll set
           # tensor names to be the md name so that rest of XAI lib
           # can  continue with the convention of using tensor names
-          # as keys.
+          # as keys. Only set the name when Framework is not Tensorflow
           input_tensor_names[in_md.name] = in_md.name
     return input_tensor_names
 
   @property
-  def indices_tensor_names(self):
+  def indices_tensor_names(self) -> Dict[str, str]:
     return self._indices_tensor_names
 
-  def _get_indices_tensor_names(self):
+  def _get_indices_tensor_names(self) -> Dict[str, str]:
     """Returns all indices tensor names in inputs with metadata name as keys."""
     indices_tensor_names = {}
     if self._inputs:
@@ -1619,10 +1576,10 @@ class ExplainMetadata(object):
     return indices_tensor_names
 
   @property
-  def dense_shape_tensor_names(self):
+  def dense_shape_tensor_names(self) -> Dict[str, str]:
     return self._dense_shape_tensor_names
 
-  def _get_dense_shape_tensor_names(self):
+  def _get_dense_shape_tensor_names(self) -> Dict[str, str]:
     """Returns dense_shape tensor names in inputs with metadata name as keys."""
     dense_shape_tensor_names = {}
     if self._inputs:
@@ -1632,10 +1589,10 @@ class ExplainMetadata(object):
     return dense_shape_tensor_names
 
   @property
-  def sparse_tensor_names(self):
+  def sparse_tensor_names(self) -> Dict[str, types.SparseTensorNames]:
     return self._sparse_tensor_names
 
-  def _get_sparse_tensor_names(self):
+  def _get_sparse_tensor_names(self) -> Dict[str, types.SparseTensorNames]:
     """Returns tensor names of TF sparse tensors.
 
     Returns:
@@ -1643,7 +1600,16 @@ class ExplainMetadata(object):
       tensors.
     """
     sparse_tensors = {}
+    logging.debug(
+        "XAI Validation :: Metadata: [ExplainMetadata] "
+        "Both `indices_tensor_name` and "
+        "`dense_shape_tensor_name` should present/absent for input tensor.")
     for name in self.input_tensor_names:
+      if (name in self.indices_tensor_names) != (
+          name in self.dense_shape_tensor_names):
+        raise ValueError(
+            "both indices_tensor_name and dense_shape_tensor_name must be "
+            "present/absent for %s." %name)
       if name in self.indices_tensor_names:
         sparse_tensors[name] = types.SparseTensorNames(
             self.input_tensor_names[name], self.indices_tensor_names[name],
@@ -1651,10 +1617,10 @@ class ExplainMetadata(object):
     return sparse_tensors
 
   @property
-  def sparse_input_dense_tensor_names(self):
+  def sparse_input_dense_tensor_names(self) -> Dict[str, str]:
     return self._sparse_input_dense_tensor_names
 
-  def _get_sparse_input_dense_tensor_names(self):
+  def _get_sparse_input_dense_tensor_names(self) -> Dict[str, str]:
     """Returns input tensor names if they are encoded."""
     tensors = {}
     for name in self.input_tensor_names:
@@ -1664,28 +1630,30 @@ class ExplainMetadata(object):
     return tensors
 
   @property
-  def dense_tensor_names(self):
+  def dense_tensor_names(self) -> Dict[str, str]:
     return self._dense_tensor_names
 
-  def _get_dense_tensor_names(self):
+  def _get_dense_tensor_names(self) -> Dict[str, str]:
     """Returns dense tensor names in a dictionary from name to tensor name."""
+    if self._inputs is None:
+      return {}
     names = {}
-    if self._inputs:
-      for in_md in self.inputs:
-        if in_md.encoded_tensor_name:
-          names[in_md.name] = in_md.encoded_tensor_name
-        elif in_md.input_tensor_name:
-          if not in_md.indices_tensor_name:
-            names[in_md.name] = in_md.input_tensor_name
-        else:
-          names[in_md.name] = in_md.name
+    for in_md in self._inputs:
+      if in_md.encoded_tensor_name is not None:
+        names[in_md.name] = in_md.encoded_tensor_name
+      elif in_md.input_tensor_name is not None:
+        if in_md.indices_tensor_name is None:
+          names[in_md.name] = in_md.input_tensor_name
+      else:
+        names[in_md.name] = in_md.name
+
     return names
 
   @property
-  def encoded_tensor_names(self):
+  def encoded_tensor_names(self) -> Dict[str, str]:
     return self._encoded_tensor_names
 
-  def _get_encoded_tensor_names(self):
+  def _get_encoded_tensor_names(self) -> Dict[str, str]:
     """Returns all encoded tensor names in inputs with metadata name as keys."""
     encoded_tensor_names = {}
     if self._inputs:
@@ -1695,14 +1663,14 @@ class ExplainMetadata(object):
     return encoded_tensor_names
 
   @property
-  def gradient_tensor_names(self):
+  def gradient_tensor_names(self) -> Dict[str, str]:
     return self._gradient_tensor_names
 
-  def gradient_tensors_for_output(self, output_name):
+  def gradient_tensors_for_output(self, output_name: str) -> Dict[str, str]:
     """Returns gradient tensor names of all inputs for given output.
 
     Args:
-      output_name(Text): Name of the output tensor, with respect to which
+      output_name: Name of the output tensor, with respect to which
         gradients are desired.
 
     Returns:
@@ -1729,10 +1697,10 @@ class ExplainMetadata(object):
     return gradient_tensor_names
 
   @property
-  def weight_tensor_names(self):
+  def weight_tensor_names(self) -> Dict[str, types.SparseTensorNames]:
     return self._weight_tensor_names
 
-  def _get_weight_tensor_names(self):
+  def _get_weight_tensor_names(self) -> Dict[str, types.SparseTensorNames]:
     """Returns from input name to weight sparse tensors."""
     weight_tensor_names = {}
     if self._inputs:
@@ -1744,10 +1712,10 @@ class ExplainMetadata(object):
     return weight_tensor_names
 
   @property
-  def all_sparse_tensor_names(self):
+  def all_sparse_tensor_names(self) -> Dict[str, types.SparseTensorNames]:
     return self._all_sparse_tensor_names
 
-  def _get_all_sparse_tensor_names(self):
+  def _get_all_sparse_tensor_names(self) -> Dict[str, types.SparseTensorNames]:
     """Returns a dictionary containing all TF sparse tensor triplets.
 
     Returns:
@@ -1763,10 +1731,10 @@ class ExplainMetadata(object):
     return all_sparse_tensors
 
   @property
-  def explained_tensor_names(self):
+  def explained_tensor_names(self) -> Dict[str, str]:
     return self._explained_tensor_names
 
-  def _get_explained_tensor_names(self):
+  def _get_explained_tensor_names(self) -> Dict[str, str]:
     """Returns the explained tensor names with tensor name as keys.
 
     Explained tensors refer to fully resolved values of model inputs that can be
@@ -1889,9 +1857,9 @@ class ExplainMetadata(object):
     return encoded_baselines
 
   def _append_baselines(self,
-                        source_baselines,
-                        source_name,
-                        baselines):
+                        source_baselines: List[Any],
+                        source_name: str,
+                        baselines: List[Dict[str, Any]]):
     """Add each baseline in a list to a dictionary in a list of the same index.
 
     Args:
@@ -1906,10 +1874,10 @@ class ExplainMetadata(object):
       baselines[i][source_name] = baseline
 
   @property
-  def output_tensor_names(self):
+  def output_tensor_names(self) -> Dict[str, str]:
     return self._output_tensor_names
 
-  def _get_output_tensor_names(self):
+  def _get_output_tensor_names(self) -> Dict[str, str]:
     """Returns all output tensor names in inputs with metadata name as keys."""
     output_tensor_names = {}
     if self._outputs:
@@ -1923,10 +1891,10 @@ class ExplainMetadata(object):
     return output_tensor_names
 
   @property
-  def embedding_tensor_names(self):
+  def embedding_tensor_names(self) -> Dict[str, str]:
     return self._embedding_tensor_names
 
-  def _get_embedding_tensor_names(self):
+  def _get_embedding_tensor_names(self) -> Dict[str, str]:
     """Returns all embedding tensor names in embeddings with metadata name as keys."""
     if not self._embeddings:
       return {}
@@ -1934,14 +1902,14 @@ class ExplainMetadata(object):
             for emb_md in self._embeddings if emb_md.embedding_tensor_name}
 
   @property
-  def output_names(self):
+  def output_names(self) -> Dict[str, str]:
     return self._output_names
 
   @property
-  def input_names(self):
+  def input_names(self) -> Dict[str, str]:
     return self._input_names
 
-  def _get_output_names(self):
+  def _get_output_names(self) -> Dict[str, str]:
     """Returns all output metadata names in inputs with tensor name as keys."""
     output_names = {}
     if self._outputs:
@@ -1964,7 +1932,7 @@ class ExplainMetadata(object):
               sigdef_in_md.name] = sigdef_in_md.sigdef_input_tensor_name
     return sigdef_input_tensor_names
 
-  def _get_tensor_name_to_dtype_mapping(self):
+  def _get_tensor_name_to_dtype_mapping(self) -> Dict[str, str]:
     """Get tensor name to dtype mapping for all tensors in ExplainMetadata.
 
     Returns:
@@ -1988,30 +1956,37 @@ class ExplainMetadata(object):
 
     Properties to satisfy.
     1. The number of baseline for each input should be the same.
-    2. Framework value is set.
+    2. input_tensor_names must exist when framework is tensorflow
     """
+    validation_utils.validate_object_init_type_hint(self)
     baseline_counter = collections.Counter()
     for input_baseline in self._input_baselines:
       baseline_counter.update(input_baseline.keys())
     for encoded_baseline in self._encoded_baselines:
       baseline_counter.update(encoded_baseline.keys())
+    logging.debug("XAI Validation :: Metadata: [ExplainMetadata] "
+                  "All inputs should have the same number of baselines.")
     if len(set(baseline_counter.values())) > 1:
       raise ValueError("Not all inputs have the same number of baselines.")
-    if not self._framework:
-      raise ValueError("You must specify one of the frameworks: %s." %
-                       Framework.values())
+    logging.debug("XAI Validation :: Metadata: [ExplainMetadata] "
+                  "`Input_tensor_names` must exist when `framework` is "
+                  "`[tensorflow, tensorflow2]`.")
+    if (self._framework in (Framework.TENSORFLOW, Framework.TENSORFLOW2) and
+        not self._input_tensor_names):
+      raise ValueError("input_tensor_names must exist when framework is "
+                       "tensorflow/tensorflow2.")
 
-  def get_dtype_with_tensor_name(self, tensor_name):
+  def get_dtype_with_tensor_name(self, tensor_name: str) -> Optional[str]:
     if tensor_name in self._tensor_name_to_dtype_mapping:
       return self._tensor_name_to_dtype_mapping[tensor_name]
     return None
 
   @classmethod
-  def from_dict(cls, md_dict):
+  def from_dict(cls, md_dict: Dict[str, Any]) -> "ExplainMetadata":
     """Construct explain_metadata object from ordered python dictionary.
 
     Args:
-      md_dict: Python dict representing the explain metadata.
+      md_dict: dict representing the explain metadata.
 
     Returns:
       explain metadata object.
@@ -2022,6 +1997,8 @@ class ExplainMetadata(object):
     preparer_version, framework = None, None
     sigdef_inputs = []
     tags = []
+    serving_sigdef_key = None
+
     for k, v in md_dict.items():
       if k == MetadataKeys.OUTPUTS:
         # Read outputs.
@@ -2049,6 +2026,8 @@ class ExplainMetadata(object):
               SigDefInputMetadata.from_dict(sigdef_in_key, v[sigdef_in_key]))
       elif k == MetadataKeys.TAGS:
         tags = v
+      elif k == MetadataKeys.SERVING_SIGDEF_KEY:
+        serving_sigdef_key = v
       else:
         raise ValueError(
             "Unexpected top-level key '%s' while parsing explain metadata." % k)
@@ -2060,10 +2039,11 @@ class ExplainMetadata(object):
         sigdef_inputs=sigdef_inputs,
         framework=framework,
         embeddings=embeddings,
-        tags=tags)
+        tags=tags,
+        serving_sigdef_key=serving_sigdef_key)
 
   @classmethod
-  def from_json(cls, json_str):
+  def from_json(cls, json_str: str) -> "ExplainMetadata":
     """Construct ExplainMetadata from a json string representation.
 
     The json string will be parsed while preserving the key ordering, this is
@@ -2082,7 +2062,7 @@ class ExplainMetadata(object):
     ])
     return cls.from_dict(md_dict)
 
-  def to_dict(self):
+  def to_dict(self) -> Dict[str, Any]:
     """Constructs a dictionary representation of ExplainMetadata."""
     output_dict = collections.OrderedDict([
         (o.name, o.to_dict()) for o in self.outputs
@@ -2103,13 +2083,15 @@ class ExplainMetadata(object):
     if self.sigdef_inputs:
       sigdef_input_dict = {si.name: si.to_dict() for si in self.sigdef_inputs}
       ret_dict[MetadataKeys.SIGDEF_INPUTS] = sigdef_input_dict
+    if self.serving_sigdef_key:
+      ret_dict[MetadataKeys.SERVING_SIGDEF_KEY] = self.serving_sigdef_key
     if self.tags:
       ret_dict[MetadataKeys.TAGS] = self.tags
     return ret_dict
 
   def to_json(self,
-              indent = None,
-              separators = None):
+              indent: Optional[int] = None,
+              separators: Optional[Tuple[str, str]] = None) -> str:
     """Constructs a json representation of ExplainMetadata.
 
     Args:
@@ -2125,25 +2107,157 @@ class ExplainMetadata(object):
     """
     return json.dumps(self.to_dict(), indent=indent, separators=separators)
 
-  def to_file(self, filename):
+  def to_file(self, filename: str) -> None:
     """Writes the json representation of ExplainMetadata to desired file path."""
     with tf.io.gfile.GFile(filename, "w") as f:
       f.write(self.to_json(indent=4, separators=(",", ": ")))
 
   @classmethod
-  def from_file(cls, filename):
+  def from_file(cls, filename: str) -> "ExplainMetadata":
     """Reads and parses metadata file.
 
     Args:
       filename: Full path of the file on gcs such as gs://bucket/folder
 
     Returns:
-      A ExplainMetadata object inferred from given file.
+      A ExplainMetadata object inferred from the given file.
     """
     with tf.io.gfile.GFile(filename, "r") as f:
       return cls.from_json(f.read())
 
 
-def _remove_empty_vals(input_dict):
-  """Removes entries from input dict where the value is None."""
-  return {k: v for k, v in input_dict.items() if v is not None}
+def explain_metadata_instance_check(explain_md: ExplainMetadata):
+  """Checks if the metadata instance is valid."""
+  logging.debug("XAI Validation :: Metadata: [ExplainMetadata instance check] "
+                "Metadata should not be `None`.")
+  if not explain_md:
+    raise ValueError("Model must have required metadata.")
+  validation_utils.validate_is_instance(explain_md, "Metadata", ExplainMetadata,
+                                        "ExplainMetadata instance check")
+  logging.debug("XAI Validation :: Metadata: [ExplainMetadata instance check] "
+                "Metadata should have at least one input.")
+  if not explain_md.inputs:
+    raise ValueError("explain_md must have a set of inputs.")
+  logging.debug("XAI Validation :: Metadata: [ExplainMetadata instance check] "
+                "Metadata should have exactly one output.")
+  if not explain_md.outputs:
+    raise ValueError("Metadata must have at least one output.")
+  if len(explain_md.outputs) > 1:
+    raise ValueError("Only one output is supported now.")
+
+
+def validate_visualization(explain_md: ExplainMetadata):
+  """Checks that the visualization property has valid values."""
+
+  for in_md in explain_md.inputs:
+    if in_md.visualization is None:
+      return  # Visualization config not provided.
+    logging.debug(
+        "XAI Validation :: Metadata: [IG input visualization config] "
+        "`modality` should be `image` when visualization config is provided.")
+    if in_md.modality != Modality.IMAGE:
+      raise ValueError(
+          "Cannot visualize attributions on non-image inputs with "
+          "modailty: %s " % in_md.modality)
+    _validate_visualization_key(in_md)
+
+    #  Overlay type must be in the predefined set
+    if PixelsVisualizationKeys.OVERLAY_TYPE in in_md.visualization:
+      overlay_type = in_md.visualization[PixelsVisualizationKeys.OVERLAY_TYPE]
+      validation_utils.validate_is_in(overlay_type, "overlay_type",
+                                      OverlayType.values(),
+                                      "IG input visualization config")
+    _validate_visualization_clip_range(in_md)
+
+
+def _validate_visualization_key(in_md: InputMetadata):
+  """Checks that the visualization keys are valid."""
+  logging.debug(
+      "XAI Validation :: Metadata: [IG input visualization config] "
+      "Required key(s): `%s` must be specified in visualization config.",
+      repr(AttributionVisualizationKeys.values()))
+  # Verify that all required keys are set.
+  required_keys_not_set = (
+      set(AttributionVisualizationKeys.values()).difference(
+          set(in_md.visualization.keys())))
+  if required_keys_not_set:
+    raise ValueError("Required key(s) not specified in 'visualization': %s." %
+                     repr(required_keys_not_set))
+
+  # Check that the TYPE key has a valid value.
+  viz_type = in_md.visualization[AttributionVisualizationRequiredKeys.TYPE]
+  validation_utils.validate_is_in(viz_type, "type",
+                                  AttributionVisualizationTypes.values(),
+                                  "IG input visualization config")
+  for viz in AttributionVisualizationTypes.values():
+    logging.debug(
+        "XAI Validation :: Metadata: [IG input visualization config] "
+        "All keys must be valid in visualization config. For `type` = `%s`, "
+        "valid key set: `%s`", viz,
+        repr(sorted(map(str, AttributionVisualizationKeys.values(viz)))))
+  # Check that all keys set under visualization correspond to the expected
+  # set of keys for the type of visualization being configured.
+  invalid_keys_provided = set(in_md.visualization.keys()).difference(
+      set(AttributionVisualizationKeys.values(viz_type)))
+  if invalid_keys_provided:
+    raise ValueError(
+        "Invalid key(s) '%s' provided for visualization '%s'. Must be: '%s'."
+        % (repr(invalid_keys_provided), viz_type,
+           repr(AttributionVisualizationKeys.values(viz_type))))
+
+
+def _validate_visualization_clip_range(in_md: InputMetadata):
+  """Checks that the visualization clip range is valid."""
+  logging.debug("XAI Validation :: Metadata: [IG input visualization config] "
+                "Both `clip_below_percentile` and "
+                "`clip_above_percentile` should be in range [0,100], and "
+                "`clip_below_percentile` < `clip_above_percentile`.")
+  if PixelsVisualizationKeys.CLIP_BELOW_PERCENTILE in in_md.visualization:
+    clip_below_percentile = in_md.visualization[
+        PixelsVisualizationKeys.CLIP_BELOW_PERCENTILE]
+    if clip_below_percentile > 100 or clip_below_percentile < 0:
+      raise ValueError(
+          "Invalid value for clip_below_percentile: "
+          "%s clip_below_percentile must be in range [0,100]."
+          % repr(clip_below_percentile))
+  if PixelsVisualizationKeys.CLIP_ABOVE_PERCENTILE in in_md.visualization:
+    clip_above_percentile = in_md.visualization[
+        PixelsVisualizationKeys.CLIP_ABOVE_PERCENTILE]
+    if clip_above_percentile > 100 or clip_above_percentile < 0:
+      raise ValueError(
+          "Invalid value for clip_above_percentile: "
+          "%s clip_above_percentile must be in range [0,100]."
+          % repr(clip_above_percentile))
+  #  clip_below_percentile should be smaller than clip_above_percentile
+  if (PixelsVisualizationKeys.CLIP_ABOVE_PERCENTILE in in_md.visualization
+      and PixelsVisualizationKeys.CLIP_BELOW_PERCENTILE
+      in in_md.visualization):
+    clip_above_percentile = in_md.visualization[
+        PixelsVisualizationKeys.CLIP_ABOVE_PERCENTILE]
+    clip_below_percentile = in_md.visualization[
+        PixelsVisualizationKeys.CLIP_BELOW_PERCENTILE]
+    if clip_below_percentile >= clip_above_percentile:
+      raise ValueError(
+          "Invalid values for clip_below_percentile, "
+          "clip_above_percentile: %s clip_below_percentile must be smaller "
+          "than clip_above_percentile."
+          % repr((clip_above_percentile, clip_below_percentile)))
+
+
+def validate_integrated_gradients(explain_md: ExplainMetadata):
+  validate_visualization(explain_md)
+  logging.debug("XAI Validation :: Metadata: [IG] "
+                "`encoded_tensor_name` must be provided when "
+                "input tensor is sparse for integrated gradient.")
+  for in_md in explain_md.inputs:
+    if (in_md.indices_tensor_name and in_md.dense_shape_tensor_name and
+        not in_md.encoded_tensor_name):
+      raise ValueError("encoded_tensor_name must be provided when "
+                       "input tensor is sparse for integrated gradient.")
+
+
+def validate_modality(explain_md: ExplainMetadata, expected_modality: str):
+  for input_md in explain_md.inputs:
+    if input_md.modality != expected_modality:
+      raise ValueError("Input modality must be %s, got %s for input %s." %
+                       (expected_modality, input_md.modality, input_md.name))

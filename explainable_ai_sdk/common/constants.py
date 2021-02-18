@@ -1,4 +1,4 @@
-# Copyright 2020 Google LLC
+# Copyright 2021 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,10 +14,10 @@
 
 """Common constants used for explainability."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+import tensorflow.compat.v1 as tf
 
+DEFAULT_SERVING_SIGNATURE_DEF_KEY = (
+    tf.saved_model.signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY)
 
 # Output index for when the model's output is a scalar.
 SCALAR_OUTPUT_INDEX = -1
@@ -42,11 +42,100 @@ B64_JPEG = "b64_jpeg"
 MAX_NUM_BASELINES = 10
 
 # Post processor registered names for visualizing attributions.
-PIXELS = "Pixels"
-OUTLINES = "Outlines"
-REGIONS = "Regions"
+PIXELS = "pixels"
+OUTLINES = "outlines"
+
+# Strategy names
+SAMPLED_SHAPLEY = "SampledShapley"
+INTEGRATED_GRADIENTS = "IntegratedGradients"
+XRAI = "XRAI"
+
+# Constant strings used in explain_server
+XSERVER_ATTRIBUTIONS = "attributions"
+XSERVER_PROFILING = "runtime_profiling"
+
+# Debugging related strings for explain() call
+STATS_LOGGING = "xai_stats_logging"  # used as key in debug_info
+STATS_LOGGING_RESULT = "xai_stats_logging_result"  # used as key in debug_info
+STATS_OBJECT = "xai_stats_object"  # used as key in thread local storage
 
 
+# Stats Logging key strings:
+SL_EXPLAIN_PREP_DATA = ("explain: prep step data",)
+SL_EXPLAIN_PREP_EVAL_EXP_TENSORS = ("explain: evaluate explained tensors",)
+SL_EXPLAIN_PREP_EVAL_OUT_RES = ("explain: evaluate outputs response",)
+SL_EXPLAIN_LABEL_ATTRIBUTIONS = ("explain: compute label_attributions",)
+SL_EXPLAIN_LABEL_ATTRIBUTIONS_VIA_STRATEGY_RAW = (
+    *SL_EXPLAIN_LABEL_ATTRIBUTIONS,
+    "_compute_attributions_via_strategy: compute raw attributions")
+SL_EXPLAIN_LABEL_ATTRIBUTIONS_VIA_STRATEGY_EXPLAINED_TENSORS = (
+    *SL_EXPLAIN_LABEL_ATTRIBUTIONS,
+    "_compute_attributions_via_strategy: prep explained tensors")
+SL_EXPLAIN_LABEL_ATTRIBUTIONS_VIA_STRATEGY_LABELD = (
+    *SL_EXPLAIN_LABEL_ATTRIBUTIONS,
+    "_compute_attributions_via_strategy: compute label attributions")
+
+SL_SHAPLEY_PREP_SOLVER = (
+    *SL_EXPLAIN_LABEL_ATTRIBUTIONS_VIA_STRATEGY_RAW,
+    "SampledShapley-calculate_baselines_attributions: prep solver")
+SL_SHAPLEY_PREP_DATA = (
+    *SL_EXPLAIN_LABEL_ATTRIBUTIONS_VIA_STRATEGY_RAW,
+    "SampledShapley-calculate_baselines_attributions: prep data")
+SL_SHAPLEY_GEN_COUNTERFACTUALS = (
+    *SL_EXPLAIN_LABEL_ATTRIBUTIONS_VIA_STRATEGY_RAW,
+    "SampledShapley-calculate_baselines_attributions: "
+    "generating counterfactuals")
+SL_SHAPLEY_PRED_COUNTERFACTUALS = (
+    *SL_EXPLAIN_LABEL_ATTRIBUTIONS_VIA_STRATEGY_RAW,
+    "SampledShapley-calculate_baselines_attributions: "
+    "calculate counterfactual predictions")
+SL_SHAPLEY_RAW_ATTRIBUTIONS = (
+    *SL_EXPLAIN_LABEL_ATTRIBUTIONS_VIA_STRATEGY_RAW,
+    "SampledShapley-calculate_baselines_attributions: "
+    "calculate raw_attributions")
+
+SL_SHAPLEY_CC_PREP_SOLVER = (
+    *SL_EXPLAIN_LABEL_ATTRIBUTIONS_VIA_STRATEGY_RAW,
+    "SampledShapleyCC-calculate_baselines_attributions: prep solver")
+SL_SHAPLEY_CC_PREP_DATA = (
+    *SL_EXPLAIN_LABEL_ATTRIBUTIONS_VIA_STRATEGY_RAW,
+    "SampledShapleyCC-calculate_baselines_attributions: prep data")
+SL_SHAPLEY_CC_GEN_COUNTERFACTUALS = (
+    *SL_EXPLAIN_LABEL_ATTRIBUTIONS_VIA_STRATEGY_RAW,
+    "SampledShapleyCC-calculate_baselines_attributions: "
+    "generating counterfactuals")
+SL_SHAPLEY_CC_PRED_COUNTERFACTUALS = (
+    *SL_EXPLAIN_LABEL_ATTRIBUTIONS_VIA_STRATEGY_RAW,
+    "SampledShapleyCC-calculate_baselines_attributions: "
+    "calculate counterfactual predictions")
+SL_SHAPLEY_CC_RAW_ATTRIBUTIONS = (
+    *SL_EXPLAIN_LABEL_ATTRIBUTIONS_VIA_STRATEGY_RAW,
+    "SampledShapleyCC-calculate_baselines_attributions: "
+    "calculate raw_attributions")
+
+SL_IG_PREP_DATA = (
+    *SL_EXPLAIN_LABEL_ATTRIBUTIONS_VIA_STRATEGY_RAW,
+    "IG-calculate_single_baseline_attributions: prep data")
+SL_IG_GEN_PATHS = (
+    *SL_EXPLAIN_LABEL_ATTRIBUTIONS_VIA_STRATEGY_RAW,
+    "IG-calculate_single_baseline_attributions: "
+    "generating paths")
+SL_IG_ATTRIBUTION_LABELS = (
+    *SL_EXPLAIN_LABEL_ATTRIBUTIONS_VIA_STRATEGY_RAW,
+    "IG-calculate_single_baseline_attributions: "
+    "Compute attributions for each label_index")
+SL_IG_PATH_UNROLLLED = (
+    *SL_IG_ATTRIBUTION_LABELS,
+    "IG-_compute_ig_attributions: "
+    "Path unrolling")
+SL_IG_EVAL_SMOOTH_GRAD = (
+    *SL_IG_ATTRIBUTION_LABELS,
+    "IG-_compute_ig_attributions: "
+    "Evaluate smoothed gradient")
+SL_IG_COMPUTE_AVG_ATTRIBUTIONS = (
+    *SL_IG_ATTRIBUTION_LABELS,
+    "IG-_compute_ig_attributions: "
+    "Compute averaged attributions")
 # Colormap for creating the attributions heatmap. Each colormap is a list of 256
 # RGB pixel values. The lowest attribution value to be visualized maps to the
 # index 0 in the colormap, whereas the highest attribution value to be

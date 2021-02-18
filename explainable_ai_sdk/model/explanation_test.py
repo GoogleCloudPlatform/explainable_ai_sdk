@@ -1,4 +1,4 @@
-# Copyright 2020 Google LLC
+# Copyright 2021 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -56,10 +56,6 @@ class ExplanationTest(tf.test.TestCase):
         'approx_error': 0.02
     }
 
-    fake_explanation_dict = {
-        'attributions_by_label': [fake_attr_dict_1, fake_attr_dict_2]
-    }
-
     modality_input_list_map = {
         constants.ALL_MODALITY: ['data', 'test'],
         constants.TABULAR_MODALITY: ['data', 'test'],
@@ -67,7 +63,7 @@ class ExplanationTest(tf.test.TestCase):
     }
 
     self.explanation = explanation.Explanation.from_ai_platform_response(
-        fake_explanation_dict, {}, modality_input_list_map)
+        [fake_attr_dict_1, fake_attr_dict_2], {}, modality_input_list_map)
 
   def test_get_attribution_no_label_index(self):
     target_label_attr = self.explanation.get_attribution()
@@ -124,7 +120,6 @@ class ExplanationTest(tf.test.TestCase):
       self.explanation.visualize_attributions(
           print_label_index=False)
       self.assertNotIn('Label Index ', mock_stdout.getvalue())
-
 
 if __name__ == '__main__':
   tf.test.main()

@@ -1,4 +1,4 @@
-# Copyright 2020 Google LLC
+# Copyright 2021 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,4 +20,5 @@ from explainable_ai_sdk.model import ai_platform_model
 from explainable_ai_sdk.model import model_factory
 
 
-model_factory.register_remote_model(ai_platform_model.AIPlatformModel)
+model_factory.register_caip_model(ai_platform_model.AIPlatformModel)
+model_factory.register_ucaip_model(ai_platform_model.AIPlatformModel)

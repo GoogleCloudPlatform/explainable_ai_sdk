@@ -1,4 +1,4 @@
-# Copyright 2020 Google LLC
+# Copyright 2021 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,25 +13,25 @@
 # limitations under the License.
 
 """Custom types for the explainers library."""
-from typing import Dict, List, Text, Union, NamedTuple, Any
+from typing import Dict, List, Union, NamedTuple, Any
 import numpy as np
 
 # Struct type for uCAIP.
-StructType = Dict[Text, Any]
+StructType = Dict[str, Any]
 # Values a tensor can contain. Dict[Any] represent struct input type.
-TensorValue = Union[int, float, bool, Text, np.ndarray, List["TensorValue"],
+TensorValue = Union[int, float, bool, str, np.ndarray, List["TensorValue"],
                     StructType]  # pytype: disable=not-supported-yet
 # A tensor can be a list of values or cast to numpy arrays.
 Tensor = Union[np.ndarray, List[TensorValue]]  # pytype: disable=not-supported-yet
 # Tensors in the explainers library are passed around in a dictionary, where
 # keys are the tensor names and values are the tensor values.
-TensorMap = Dict[Text, Tensor]
+TensorMap = Dict[str, Tensor]
 # An instance is a dictionary from input name to the input value format accepted
 # by Tensorflow, AI Platform, etc.
-Instance = Dict[Text, TensorValue]  # pytype: disable=not-supported-yet
+Instance = Dict[str, TensorValue]  # pytype: disable=not-supported-yet
 # Instances are usually passed around as a list.
 Instances = List[Instance]
 
-SparseTensorNames = NamedTuple("SparseTensorNames", [("values", Text),
-                                                     ("indices", Text),
-                                                     ("dense_shape", Text)])
+SparseTensorNames = NamedTuple("SparseTensorNames", [("values", str),
+                                                     ("indices", str),
+                                                     ("dense_shape", str)])

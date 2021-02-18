@@ -1,4 +1,4 @@
-# Copyright 2020 Google LLC
+# Copyright 2021 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -49,9 +49,9 @@ from __future__ import division
 
 from __future__ import print_function
 
-
+from typing import Dict, Text, List, Any, Set, Callable, Optional
 import tensorflow.compat.v1 as tf
-from tensorflow.python.feature_column import feature_column_v2 as fc2
+from tensorflow.python.feature_column import feature_column_v2 as fc2  
 from explainable_ai_sdk.common import explain_metadata
 from explainable_ai_sdk.metadata import constants
 from explainable_ai_sdk.metadata import metadata_builder
@@ -63,10 +63,10 @@ class EstimatorMetadataBuilder(metadata_builder.MetadataBuilder):
   """Class for generating metadata for models built with Estimator API."""
 
   def __init__(self,
-               estimator,
-               feature_columns,
-               serving_input_fn,
-               output_key = None,
+               estimator: tf.estimator.Estimator,
+               feature_columns: List[fc2.FeatureColumn],
+               serving_input_fn: Callable[..., Any],
+               output_key: Optional[Text] = None,
                **kwargs):
     """Initialize an EstimatorMetadataBuilder.
 
@@ -96,7 +96,7 @@ class EstimatorMetadataBuilder(metadata_builder.MetadataBuilder):
 
   def _get_input_tensor_names_for_metadata(
       self,
-      feature_tensors):
+      feature_tensors: monkey_patch_utils.FeatureTensors) -> Dict[Text, Text]:
     """Returns a dictionary of tensor names for given FeatureTensors object."""
     input_md = {}
     if isinstance(feature_tensors.input_tensor, tf.Tensor):
@@ -115,7 +115,7 @@ class EstimatorMetadataBuilder(metadata_builder.MetadataBuilder):
 
   def _get_encoded_tensor_names_for_metadata(
       self,
-      feature_tensors):
+      feature_tensors: monkey_patch_utils.FeatureTensors) -> Dict[Text, Text]:
     """Returns encoded tensor names only if there is a single encoded tensor."""
     input_md = {}
     if len(feature_tensors.encoded_tensors) == 1:
@@ -126,9 +126,9 @@ class EstimatorMetadataBuilder(metadata_builder.MetadataBuilder):
 
   def _create_input_metadata(
       self,
-      features_dict,
-      crossed_columns,
-      desired_columns):
+      features_dict: Dict[Text, List[monkey_patch_utils.FeatureTensors]],
+      crossed_columns: Set[Text],
+      desired_columns: List[Text]):
     """Creates and returns a list of InputMetadata.
 
     Args:
@@ -162,7 +162,7 @@ class EstimatorMetadataBuilder(metadata_builder.MetadataBuilder):
           input_mds.append(explain_metadata.InputMetadata(**input_md))
     return input_mds
 
-  def _create_output_metadata(self, output_dict):
+  def _create_output_metadata(self, output_dict: Dict[Text, tf.Tensor]):
     """Creates and returns a list of OutputMetadata.
 
     Args:
@@ -176,10 +176,10 @@ class EstimatorMetadataBuilder(metadata_builder.MetadataBuilder):
 
   def _create_metadata_dict(
       self,
-      features_dict,
-      crossed_columns, desired_columns,
-      output_dict
-  ):
+      features_dict: Dict[Text, List[monkey_patch_utils.FeatureTensors]],
+      crossed_columns: Set[Text], desired_columns: List[Text],
+      output_dict: Dict[Text, tf.Tensor]
+  ) -> Dict[Text, Any]:
     """Creates metadata from given tensor information.
 
     Args:
@@ -199,7 +199,7 @@ class EstimatorMetadataBuilder(metadata_builder.MetadataBuilder):
         framework='Tensorflow',
         tags=[constants.METADATA_TAG]).to_dict()
 
-  def save_model_with_metadata(self, file_path):
+  def save_model_with_metadata(self, file_path: Text):
     """Saves the model and the generated metadata to the given file path.
 
     Args:

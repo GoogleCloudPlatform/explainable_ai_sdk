@@ -1,4 +1,4 @@
-# Copyright 2020 Google LLC
+# Copyright 2021 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,12 +27,13 @@ This builder infers metadata for all inputs and outputs. However, explainability
 service supports only single output. Users need to use remove_output_metadata
 and get_metadata functions to remove the ones they don't need.
 """
-
+from typing import Optional, List, Dict, Union, Any, Tuple
 import tensorflow as tf
 from explainable_ai_sdk.common import explain_metadata
 from explainable_ai_sdk.common import types
 from explainable_ai_sdk.metadata import constants
 from explainable_ai_sdk.metadata import metadata_builder
+from explainable_ai_sdk.metadata import parameters
 from explainable_ai_sdk.metadata import utils
 
 
@@ -41,10 +42,10 @@ class SavedModelMetadataBuilder(metadata_builder.MetadataBuilder):
 
   def __init__(
       self,
-      model_path,
-      signature_name = tf.saved_model.DEFAULT_SERVING_SIGNATURE_DEF_KEY,
-      outputs_to_explain = (),
-      **kwargs):
+      model_path: str,
+      signature_name: str = tf.saved_model.DEFAULT_SERVING_SIGNATURE_DEF_KEY,
+      outputs_to_explain: Optional[List[str]] = (),
+      **kwargs) -> None:
     """Initializes a SavedModelMetadataBuilder object.
 
     Args:
@@ -69,8 +70,9 @@ class SavedModelMetadataBuilder(metadata_builder.MetadataBuilder):
         signature_name)
 
   def _infer_metadata_entries_from_model(
-      self, signature_name
-  ):
+      self, signature_name: str
+  ) -> Tuple[Dict[str, explain_metadata.InputMetadata],
+             Dict[str, explain_metadata.OutputMetadata]]:
     """Infers metadata inputs and outputs."""
     loaded_sig = self._loaded_model.signatures[signature_name]
     _, input_sig = loaded_sig.structured_input_signature
@@ -97,10 +99,11 @@ class SavedModelMetadataBuilder(metadata_builder.MetadataBuilder):
 
   def set_numeric_metadata(
       self,
-      input_name,
-      new_name = None,
-      input_baselines = None,
-      index_feature_mapping = None):
+      input_name: str,
+      new_name: Optional[str] = None,
+      input_baselines: Optional[List[Union[types.TensorValue,
+                                           types.Tensor]]] = None,
+      index_feature_mapping: Optional[List[str]] = None) -> None:
     """Sets an existing metadata identified by input as numeric with params.
 
     Args:
@@ -133,12 +136,14 @@ class SavedModelMetadataBuilder(metadata_builder.MetadataBuilder):
 
   def set_categorical_metadata(
       self,
-      input_name,
-      new_name = None,
-      encoded_name = None,
-      encoding = explain_metadata.Encoding.IDENTITY,
-      input_baselines = None,
-      encoded_baselines = None):
+      input_name: str,
+      new_name: Optional[str] = None,
+      encoded_name: Optional[str] = None,
+      encoding: str = explain_metadata.Encoding.IDENTITY,
+      input_baselines: Optional[List[Union[types.TensorValue,
+                                           types.Tensor]]] = None,
+      encoded_baselines: Optional[List[Union[types.TensorValue,
+                                             types.Tensor]]] = None) -> None:
     """Sets an existing metadata identified by input as categorical with params.
 
     Args:
@@ -174,10 +179,13 @@ class SavedModelMetadataBuilder(metadata_builder.MetadataBuilder):
 
   def set_image_metadata(
       self,
-      input_name,
-      new_name = None,
-      input_baselines = None,
-      visualization = None):
+      input_name: str,
+      new_name: Optional[str] = None,
+      input_baselines: Optional[List[Union[types.TensorValue,
+                                           types.Tensor]]] = None,
+      visualization: Optional[Union[Dict[str, str],
+                                    parameters.VisualizationParameters]] = None,
+      domain: Optional[parameters.DomainInfo] = None) -> None:
     """Sets an existing metadata identified by input as image with params.
 
     Args:
@@ -186,9 +194,11 @@ class SavedModelMetadataBuilder(metadata_builder.MetadataBuilder):
       input_baselines: A list of baseline values. Each baseline value can be a
         single entity or of the same shape as the model_input (except for the
         batch dimension).
-      visualization: A dictionary specifying visualization parameters. Check out
-        original documentation for possible keys and values:
-        https://cloud.google.com/ai-platform/prediction/docs/ai-explanations/visualizing-explanations
+      visualization: Either a dictionary of visualization parameters or
+        VisualizationParameters instance. Using VisualizationParameters is
+        recommended. If None, a default visualization will be selected based on
+        the explanation method (IG/XRAI).
+      domain: DomainInfo object specifying the range of the input feature.
 
     Raises:
       ValueError: If input_name cannot be found in the metadata.
@@ -197,14 +207,19 @@ class SavedModelMetadataBuilder(metadata_builder.MetadataBuilder):
       raise ValueError("Input with with name '%s' does not exist." % input_name)
     name = new_name if new_name else input_name
     tensor_name = self._inputs.pop(input_name).input_tensor_name
+    if (visualization and
+        isinstance(visualization, parameters.VisualizationParameters)):
+      visualization = visualization.asdict()
+    domain_dict = domain.asdict() if domain else None
     self._inputs[name] = explain_metadata.InputMetadata(
         name=name,
         input_tensor_name=tensor_name,
         input_baselines=input_baselines,
         modality=explain_metadata.Modality.IMAGE,
-        visualization=visualization)
+        visualization=visualization,
+        domain=domain_dict)
 
-  def set_output_metadata(self, output_name, new_name):
+  def set_output_metadata(self, output_name: str, new_name: str) -> None:
     """Updates an existing output metadata identified by output_name.
 
     Args:
@@ -223,19 +238,19 @@ class SavedModelMetadataBuilder(metadata_builder.MetadataBuilder):
     self._outputs[new_name] = explain_metadata.OutputMetadata(
         new_name, old_output.output_tensor_name)
 
-  def remove_input_metadata(self, name):
+  def remove_input_metadata(self, name: str) -> None:
     """Removes input metadata with the name."""
     if name not in self._inputs:
       raise ValueError("Input with with name '%s' does not exist." % name)
     del self._inputs[name]
 
-  def remove_output_metadata(self, name):
+  def remove_output_metadata(self, name: str) -> None:
     """Removes output metadata with the name."""
     if name not in self._outputs:
       raise ValueError("Output with with name '%s' does not exist." % name)
     del self._outputs[name]
 
-  def get_metadata(self):
+  def get_metadata(self) -> Dict[str, Any]:
     """Returns the current metadata as a dictionary."""
     current_md = explain_metadata.ExplainMetadata(
         inputs=list(self._inputs.values()),
@@ -244,7 +259,7 @@ class SavedModelMetadataBuilder(metadata_builder.MetadataBuilder):
         tags=[constants.METADATA_TAG])
     return current_md.to_dict()
 
-  def save_metadata(self, file_path):
+  def save_metadata(self, file_path: str) -> None:
     """Saves model metadata to the given folder.
 
     Args:
@@ -258,7 +273,7 @@ class SavedModelMetadataBuilder(metadata_builder.MetadataBuilder):
       raise ValueError("Number of outputs is more than 1.")
     utils.write_metadata_to_file(self.get_metadata(), file_path)
 
-  def save_model_with_metadata(self, file_path):
+  def save_model_with_metadata(self, file_path: str) -> str:
     """Saves the model and the generated metadata to the given file path.
 
     Args:

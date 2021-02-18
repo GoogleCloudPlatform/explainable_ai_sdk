@@ -1,4 +1,4 @@
-# Copyright 2020 Google LLC
+# Copyright 2021 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,11 +19,10 @@ The class is a key class for SDK funtionalities (e.g., visualization).
 """
 import base64
 import io
-
+from typing import Any, Dict, List, Optional
 
 from matplotlib import image as mpimg
 from matplotlib import pyplot as plt
-
 import numpy as np
 
 from explainable_ai_sdk.common import attribution
@@ -38,9 +37,9 @@ class Explanation(object):
   """Base class for storing explanations."""
 
   def __init__(self,
-               instance_attribution,
-               instance,
-               modality_input_list_map):
+               instance_attribution: attribution.LabelIndexToAttribution,
+               instance: types.Instance,
+               modality_input_list_map: Dict[str, List[str]]):
     """Creates an Explanation object.
 
     Args:
@@ -56,9 +55,9 @@ class Explanation(object):
 
   @classmethod
   def from_ai_platform_response(
-      cls, attribution_dict,
-      instance,
-      modality_input_list_map):
+      cls, attribution_dict: List[Dict[str, Any]],
+      instance: types.Instance,
+      modality_input_list_map: Dict[str, Any]):
     """Forms an Explanation object from AI Platform explain server response.
 
     Args:
@@ -71,11 +70,31 @@ class Explanation(object):
       A newly-created Explanation object.
     """
     label_idx_to_attr = attribution.LabelIndexToAttribution.from_list(
-        attribution_dict['attributions_by_label'])
+        attribution_dict)
     return cls(label_idx_to_attr, instance, modality_input_list_map)
 
-  def get_attribution(self, label_index = None
-                     ):
+  @classmethod
+  def from_unified_ai_platform_response(
+      cls, attribution_dict: List[Dict[str, Any]],
+      instance: types.Instance,
+      modality_input_list_map: Dict[str, Any]):
+    """Forms an Explanation object from uCAIP model response.
+
+    Args:
+      attribution_dict: Attribution response from Unified AI Platform.
+      instance: A dictionary of values representing the data point.
+      modality_input_list_map: Dictionary mapping from modality to a list of
+        input names.
+
+    Returns:
+      A newly-created Explanation object.
+    """
+    label_idx_to_attr = attribution.LabelIndexToAttribution.from_ucaip_response(
+        attribution_dict)
+    return cls(label_idx_to_attr, instance, modality_input_list_map)
+
+  def get_attribution(self, label_index: Optional[int] = None
+                     ) -> attribution.Attribution:
     """Returns an object of the attributions.
 
     Args:
@@ -98,8 +117,8 @@ class Explanation(object):
 
   def feature_importance(
       self,
-      label_index = None,
-      modality = constants.ALL_MODALITY):
+      label_index: Optional[int] = None,
+      modality: str = constants.ALL_MODALITY) -> Dict[str, float]:
     """Returns a dict of each feature and the corresponding attribution value.
 
     If the feature is not 1D (e.g., RGB channels, embeddings), the value is a
@@ -121,8 +140,8 @@ class Explanation(object):
 
   def as_tensors(
       self,
-      label_index = None,
-      modality = constants.ALL_MODALITY):
+      label_index: Optional[int] = None,
+      modality: str = constants.ALL_MODALITY) -> Dict[str, np.ndarray]:
     """Returns a dict of each feature and the corresponding raw attributions.
 
     Unlike the feature_importance method, this method does not aggregate the
@@ -145,8 +164,8 @@ class Explanation(object):
 
   def _print_basic_info(
       self,
-      label_index = None,
-      print_label_index = True):
+      label_index: Optional[int] = None,
+      print_label_index: bool = True):
     """Prints basic information of a specific label.
 
     Args:
@@ -160,19 +179,19 @@ class Explanation(object):
 
     if print_label_index and (target_label_attr.label_index is not None) and (
         target_label_attr.label_index != -1):
-      print('Label Index %d' % target_label_attr.label_index)
-    print('Example Score: %.4f' % target_label_attr.example_score)
-    print('Baseline Score: %.4f' % target_label_attr.baseline_score)
+      print(f'Label Index {target_label_attr.label_index}')
+    print(f'Example Score: {target_label_attr.example_score:.4f}')
+    print(f'Baseline Score: {target_label_attr.baseline_score:.4f}')
     if target_label_attr.approx_error is not None:
-      print('Approximation Error: %.4f' % target_label_attr.approx_error)
+      print(f'Approximation Error: {target_label_attr.approx_error:.4f}')
 
       if target_label_attr.approx_error > APPROX_ERROR_THRESHOLD:
         print('Warning: Approximation error exceeds 5%.')
 
   def visualize_top_k_features(self,
-                               k = 10,
-                               label_index = None,
-                               modality = constants.ALL_MODALITY):
+                               k: Optional[int] = 10,
+                               label_index: Optional[int] = None,
+                               modality: str = constants.ALL_MODALITY):
     """Visualizes attributions.
 
     Args:
@@ -203,7 +222,7 @@ class Explanation(object):
       plt.xlabel('Attribution value')
       plt.show()
 
-  def _visualize_image_attributions(self, label_index = None):
+  def _visualize_image_attributions(self, label_index: Optional[int] = None):
     """Visualizes image attributions.
 
     Args:
@@ -228,7 +247,7 @@ class Explanation(object):
         plt.imshow(i, interpolation='nearest')
         plt.show()
 
-  def _visualize_tabular_attributions(self, label_index = None):
+  def _visualize_tabular_attributions(self, label_index: Optional[int] = None):
     """Visualizes tabular attributions.
 
     Args:
@@ -243,8 +262,8 @@ class Explanation(object):
 
   def visualize_attributions(
       self,
-      label_index = None,
-      print_label_index = True):
+      label_index: Optional[int] = None,
+      print_label_index: bool = True):
     """Visualizes all types of attributions.
 
     Args:

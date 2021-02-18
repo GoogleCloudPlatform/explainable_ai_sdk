@@ -1,4 +1,4 @@
-# Copyright 2020 Google LLC
+# Copyright 2021 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -39,9 +39,10 @@ Example usage is as follows:
   builder = KerasGraphMetadataBuilder(model)
   builder.save_model_with_metadata("gs://xai/model/keras/")
 """
-
+from typing import Dict, Text, Optional, List, Any, Set, Union
 import tensorflow.compat.v1 as tf
 import tensorflow.compat.v1.keras as keras
+from explainable_ai_sdk.metadata import parameters
 from explainable_ai_sdk.metadata.tf.v1 import graph_metadata_builder
 
 
@@ -49,13 +50,13 @@ class KerasGraphMetadataBuilder(graph_metadata_builder.GraphMetadataBuilder):
   """Class for generating metadata for models built with Keras API."""
 
   def __init__(self,
-               model,
-               outputs_to_explain = (),
-               session = None,
-               serving_inputs = None,
-               serving_outputs = None,
-               tags = (tf.saved_model.tag_constants.SERVING,),
-               auto_infer = True,
+               model: keras.Model,
+               outputs_to_explain: Optional[List[tf.Tensor]] = (),
+               session: tf.Session = None,
+               serving_inputs: Optional[Dict[Text, tf.Tensor]] = None,
+               serving_outputs: Optional[Dict[Text, tf.Tensor]] = None,
+               tags: Set[Text] = (tf.saved_model.tag_constants.SERVING,),
+               auto_infer: bool = True,
                **kwargs):
     """Initializes a KerasGraphMetadataBuilder object.
 
@@ -111,12 +112,12 @@ class KerasGraphMetadataBuilder(graph_metadata_builder.GraphMetadataBuilder):
       raise ValueError('Provided output is not one of model outputs.')
 
   def set_categorical_metadata(self,
-                               model_input,
-                               encoded_layer,
-                               encoding,
-                               name = None,
-                               input_baselines = None,
-                               encoded_baselines = None):
+                               model_input: tf.Tensor,
+                               encoded_layer: keras.layers.Layer,
+                               encoding: Text,
+                               name: Optional[Text] = None,
+                               input_baselines: Optional[List[Any]] = None,
+                               encoded_baselines: Optional[List[Any]] = None):
     """Sets an existing metadata identified by input as categorical with params.
 
     Args:
@@ -139,10 +140,10 @@ class KerasGraphMetadataBuilder(graph_metadata_builder.GraphMetadataBuilder):
                                   name, input_baselines, encoded_baselines)
 
   def set_numeric_metadata(self,
-                           model_input,
-                           name = None,
-                           input_baselines = None,
-                           index_feature_mapping = None):
+                           model_input: tf.Tensor,
+                           name: Optional[Text] = None,
+                           input_baselines: Optional[List[Any]] = None,
+                           index_feature_mapping: Optional[List[Any]] = None):
     """Sets an existing metadata identified by input as numeric with params.
 
     Args:
@@ -162,12 +163,12 @@ class KerasGraphMetadataBuilder(graph_metadata_builder.GraphMetadataBuilder):
         index_feature_mapping=index_feature_mapping)
 
   def set_text_metadata(self,
-                        model_input,
-                        encoded_layer,
-                        encoding,
-                        name = None,
-                        input_baselines = None,
-                        encoded_baselines = None):
+                        model_input: tf.Tensor,
+                        encoded_layer: keras.layers.Layer,
+                        encoding: Text,
+                        name: Optional[Text] = None,
+                        input_baselines: Optional[List[Any]] = None,
+                        encoded_baselines: Optional[List[Any]] = None):
     """Sets an existing metadata identified by input as text with params.
 
     Args:
@@ -189,11 +190,15 @@ class KerasGraphMetadataBuilder(graph_metadata_builder.GraphMetadataBuilder):
     self.add_text_metadata(model_input, encoded_layer.output, encoding, name,
                            input_baselines, encoded_baselines)
 
-  def set_image_metadata(self,
-                         model_input,
-                         name = None,
-                         input_baselines = None,
-                         visualization = None):
+  def set_image_metadata(
+      self,
+      model_input: tf.Tensor,
+      name: Optional[Text] = None,
+      input_baselines: Optional[List[Any]] = None,
+      visualization: Optional[Union[Dict[str, str],
+                                    parameters.VisualizationParameters]] = None,
+      domain: Optional[parameters.DomainInfo] = None
+  ):
     """Sets an existing metadata identified by input as image with params.
 
     Args:
@@ -202,15 +207,20 @@ class KerasGraphMetadataBuilder(graph_metadata_builder.GraphMetadataBuilder):
       input_baselines: A list of baseline values. Each baseline value can be a
         single entity or of the same shape as the model_input (except for the
         batch dimension).
-      visualization: A dictionary mapping from keys {type} to values {pixel,
-        region}.
+      visualization: Either a dictionary of visualization parameters or
+        VisualizationParameters instance. Using VisualizationParameters is
+        recommended instead of a dictionary, which will be deprecated soon. If
+        None, a default visualization config will be selected based on the
+        explanation method (IG/XRAI).
+      domain: DomainInfo object specifying the range of the input feature.
     """
     self.remove_input_metadata(model_input)
-    self.add_image_metadata(model_input, name, input_baselines, visualization)
+    self.add_image_metadata(model_input, name, input_baselines, visualization,
+                            domain)
 
   def set_output_metadata(self,
-                          model_output,
-                          name = None):
+                          model_output: tf.Tensor,
+                          name: Optional[Text] = None):
     """Adds output tensor as output metadata.
 
     Args:
@@ -221,7 +231,7 @@ class KerasGraphMetadataBuilder(graph_metadata_builder.GraphMetadataBuilder):
     self.remove_output_metadata(model_output)
     self.add_output_metadata(model_output, name)
 
-  def remove_input_metadata(self, model_input):
+  def remove_input_metadata(self, model_input: tf.Tensor):
     """Removes a metadata entry identified by the tensor.
 
     Args:
@@ -231,7 +241,7 @@ class KerasGraphMetadataBuilder(graph_metadata_builder.GraphMetadataBuilder):
       raise ValueError('Input "%s" does not exist.' % model_input.name)
     del self._inputs[model_input.name]
 
-  def remove_output_metadata(self, model_output):
+  def remove_output_metadata(self, model_output: tf.Tensor):
     """Removes a metadata entry identified by the tensor.
 
     Args:

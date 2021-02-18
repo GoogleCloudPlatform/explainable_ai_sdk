@@ -1,4 +1,4 @@
-# Copyright 2020 Google LLC
+# Copyright 2021 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,14 +19,14 @@ from __future__ import division
 
 from __future__ import print_function
 
-
+from typing import Dict, Text, Any, Set
 import tensorflow.compat.v1 as tf
 
 
 def _create_signature_def(
-    inputs,
-    outputs,
-    method_name=tf.saved_model.PREDICT_METHOD_NAME):
+    inputs: Dict[Text, tf.Tensor],
+    outputs: Dict[Text, tf.Tensor],
+    method_name=tf.saved_model.PREDICT_METHOD_NAME) -> Any:
   """Creates a Tensorflow signature from given parameters.
 
   Args:
@@ -49,11 +49,11 @@ def _create_signature_def(
       method_name=method_name)
 
 
-def save_graph_model(session,
-                     export_dir,
-                     sig_def_inputs,
-                     sig_def_outputs,
-                     tags,
+def save_graph_model(session: tf.Session,
+                     export_dir: Text,
+                     sig_def_inputs: Dict[Text, tf.Tensor],
+                     sig_def_outputs: Dict[Text, tf.Tensor],
+                     tags: Set[Text],
                      **kwargs):
   """Saves the model in the session with given inputs and outputs."""
   with session.graph.as_default():

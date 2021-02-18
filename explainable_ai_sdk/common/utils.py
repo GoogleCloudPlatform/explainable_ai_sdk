@@ -1,4 +1,4 @@
-# Copyright 2020 Google LLC
+# Copyright 2021 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,18 +16,15 @@
 """Utilities for explanations for all frameworks.
 """
 
-from __future__ import absolute_import
-from __future__ import division
-
-from __future__ import print_function
-
 import base64
 import collections
 import json
 from multiprocessing import pool
+from typing import Any, Callable, Dict, Iterable, List, Optional, Set, Tuple, Union
 
 import numpy as np
 import six
+
 from explainable_ai_sdk.common import types
 
 EXPLAIN_OUTPUT_INDEX_TEMPLATE = "explain__index/{}"
@@ -44,9 +41,9 @@ class FieldKeys(object):
 class EvaluatedSparseTensor(object):
   """A data-holder class to contain feed for a single sparse tensor."""
 
-  def __init__(self, values,
-               indices,
-               dense_shape):
+  def __init__(self, values: Dict[str, Union[List[Any], np.ndarray]],
+               indices: Dict[str, Union[List[int], np.ndarray]],
+               dense_shape: Dict[str, Union[List[int], np.ndarray]]):
     """Initializes EvaluatedSparseTensor with all inputs cast to numpy arrays.
 
     Args:
@@ -70,7 +67,7 @@ class EvaluatedSparseTensor(object):
   def dense_shape(self):
     return self._dense_shape
 
-  def to_dict(self):
+  def to_dict(self) -> Dict[str, Any]:
     """Returns unified dictionary representation of the feed."""
     sparse_feed = {}
     sparse_feed.update(self.values)
@@ -79,8 +76,8 @@ class EvaluatedSparseTensor(object):
     return sparse_feed
 
 
-def merge_dict(dict1, dict2
-              ):
+def merge_dict(dict1: Dict[str, Any], dict2: Dict[str, Any]
+              ) -> Dict[str, Any]:
   """Merge two dictionaries into a third dictionary.
 
   Args:
@@ -97,8 +94,8 @@ def merge_dict(dict1, dict2
   return res
 
 
-def recursive_merge_dict(dict1,
-                         dict2):
+def recursive_merge_dict(dict1: Dict[str, Any],
+                         dict2: Dict[str, Any]) -> Dict[str, Any]:
   """Merge two dictionaries into a third dictionary recursively.
 
   Args:
@@ -118,8 +115,8 @@ def recursive_merge_dict(dict1,
   return res
 
 
-def get_sample_from_batched_tensors(tensors,
-                                    idx):
+def get_sample_from_batched_tensors(tensors: Union[List[Any], Dict[str, Any]],
+                                    idx: int) -> Dict[str, Any]:
   """Collect sample at index idx of a given dictionary or list.
 
   Args:
@@ -133,7 +130,7 @@ def get_sample_from_batched_tensors(tensors,
   return {key: val[idx] for key, val in tensors.items()}
 
 
-def _check_size_type(a, b):
+def _check_size_type(a: Any, b: Any) -> bool:
   """Check if two instances have the same type. Check shape for list, ndarray.
 
   Args:
@@ -151,8 +148,8 @@ def _check_size_type(a, b):
   return True
 
 
-def columnarize(instances,
-                keys = None):
+def columnarize(instances: List[Dict[Any, Any]],
+                keys: Optional[Set[Any]] = None) -> Dict[Any, Any]:
   """Columnarize inputs.
 
   Each line in the input is a dictionary of input names to the value
@@ -193,8 +190,8 @@ def columnarize(instances,
   return columns
 
 
-def concat(instances,
-           keys = None):
+def concat(instances: List[Dict[Any, Any]],
+           keys: Optional[Set[Any]] = None) -> Dict[str, Any]:
   """Concat inputs.
 
   Each line in the input is a dictionary of input names to the value
@@ -236,7 +233,7 @@ def concat(instances,
   return columns
 
 
-def rowify(columns):
+def rowify(columns: Dict[Any, Any]) -> List[Dict[str, Any]]:
   """Converts columnar input to row data.
 
   We treat the first dimension of each input tensor as `batch` dimension and
@@ -272,32 +269,33 @@ def rowify(columns):
   if not columns:
     return result  # Empty row.
 
-  # Make sure columns are ndarrays.
-  columns = {key: np.array(value) for (key, value) in columns.items()}
-  sizes_set = {e.shape[0] for e in six.itervalues(columns)}
+  # Make sure columns are ndarrays. ndarrays help calculate shapes.
+  columns_np = {key: np.array(value) for (key, value) in columns.items()}
+  sizes_set = {e.shape[0] for e in six.itervalues(columns_np)}
 
   # All the elements in the length array should be identical. Otherwise,
   # raise an exception.
   if len(sizes_set) > 1:
-    sizes_dict = {name: e.shape[0] for name, e in six.iteritems(columns)}
+    sizes_dict = {name: e.shape[0] for name, e in six.iteritems(columns_np)}
     raise ValueError("All the elements in the length array should be identical."
                      " See the inputs and their size: %s." % sizes_dict)
 
   # Pick an arbitrary value in the map to get its size.
-  num_instances = len(next(six.itervalues(columns)))
+  num_instances = len(next(six.itervalues(columns_np)))
   for row in six.moves.xrange(num_instances):
     result.append({
-        name: output[row, Ellipsis].tolist()
+        name: output[row].tolist()
+              if isinstance(output[row], np.ndarray) else output[row]
         for name, output in six.iteritems(columns)
     })
   return result
 
 
-def split_feeds(dense_feed,
-                sparse_feed,
-                side_feed,
-                max_batch_size
-               ):
+def split_feeds(dense_feed: types.TensorMap,
+                sparse_feed: List[EvaluatedSparseTensor],
+                side_feed: types.TensorMap,
+                max_batch_size: int
+               ) -> List[types.TensorMap]:
   """Splits given feeds into smaller batches and returns unified subbatches.
 
   Args:
@@ -341,10 +339,10 @@ def split_feeds(dense_feed,
 
 
 def unify_subbatches(
-    dense_feeds,
-    sparse_feeds,
-    side_feeds,
-    size):
+    dense_feeds: List[types.TensorMap],
+    sparse_feeds: List[List[EvaluatedSparseTensor]],
+    side_feeds: List[types.TensorMap],
+    size: int) -> List[types.TensorMap]:
   """Unifies given subbatch feeds to a single list of subbatch feeds.
 
   This function unifies subbatches of dense, side and sparse feeds, which were
@@ -384,18 +382,18 @@ def unify_subbatches(
   return merged_feeds
 
 
-def _split_dense_feed(feed,
-                      actual_size, max_batch_size
-                     ):
+def _split_dense_feed(feed: types.TensorMap,
+                      actual_size: int, max_batch_size: int
+                     ) -> List[types.TensorMap]:
   """Splits a dictionary of arrays into sub-batches in the first dimension."""
   return [{k: v[i:i + max_batch_size] for k, v in feed.items()}
           for i in range(0, actual_size, max_batch_size)]
 
 
-def split_sparse_feed(sparse_feed,
-                      actual_size,
-                      max_batch_size
-                     ):
+def split_sparse_feed(sparse_feed: List[EvaluatedSparseTensor],
+                      actual_size: int,
+                      max_batch_size: int
+                     ) -> List[List[EvaluatedSparseTensor]]:
   """Splits sparse feed to a list of smaller feeds.
 
   Args:
@@ -417,8 +415,8 @@ def split_sparse_feed(sparse_feed,
   return [_split_sparse_eval(sparse_eval, sizes) for sparse_eval in sparse_feed]
 
 
-def _split_sparse_eval(sparse_eval,
-                       sizes):
+def _split_sparse_eval(sparse_eval: EvaluatedSparseTensor,
+                       sizes: List[int]) -> List[EvaluatedSparseTensor]:
   """Splits a given sparse tensor to given batch sizes.
 
   A sparse tensor is a compact representation of a dense tensor via 3 tensors.
@@ -469,8 +467,8 @@ def _split_sparse_eval(sparse_eval,
   return feed_splits
 
 
-def _find_sparse_split_points(indices_array,
-                              split_points_in_dense):
+def _find_sparse_split_points(indices_array: np.ndarray,
+                              split_points_in_dense: List[int]) -> List[int]:
   """Finds split locations in the indices array.
 
   Args:
@@ -486,8 +484,8 @@ def _find_sparse_split_points(indices_array,
   return indices_array.searchsorted(split_points_in_dense)
 
 
-def _split_indices(indices_array, split_points_in_dense,
-                   split_at):
+def _split_indices(indices_array: np.ndarray, split_points_in_dense: List[int],
+                   split_at: List[int]) -> List[np.ndarray]:
   """Splits indices array for the given sizes.
 
   Indices arrays specify the value locations for the values in a corresponding
@@ -517,23 +515,23 @@ def _split_indices(indices_array, split_points_in_dense,
   return indices_splits
 
 
-def _split_values(values_array,
-                  split_at):
+def _split_values(values_array: Union[List[Any], np.ndarray],
+                  split_at: List[int]) -> List[np.ndarray]:
   """Splits values tensor based on given split points."""
   return np.split(values_array, split_at)
 
 
-def _split_dense_shape(dense_shape_array,
-                       sizes):
+def _split_dense_shape(dense_shape_array: Union[List[int], np.ndarray],
+                       sizes: List[int]) -> List[np.ndarray]:
   """Splits dense shape array based on batch sizes."""
   return [np.concatenate(([size], dense_shape_array[1:])) for size in sizes]
 
 
 def merge_evaluated_subbatches(
-    dense_fetches,
-    sparse_fetches,
-    side_fetches
-):
+    dense_fetches: List[types.TensorMap],
+    sparse_fetches: List[List[EvaluatedSparseTensor]],
+    side_fetches: List[types.TensorMap]
+) -> types.TensorMap:
   """Merges evaluated subbatches.
 
   Args:
@@ -556,8 +554,8 @@ def merge_evaluated_subbatches(
 
 
 def merge_sparse_fetches(
-    sparse_fetches
-):
+    sparse_fetches: List[List[EvaluatedSparseTensor]]
+) -> types.TensorMap:
   """Merges subbatches of evaluated sparse tensors into a single dictionary.
 
   Args:
@@ -576,8 +574,8 @@ def merge_sparse_fetches(
 
 
 def _merge_subbatched_sparse_fetch(
-    sparse_fetch_subbatches
-):
+    sparse_fetch_subbatches: List[EvaluatedSparseTensor]
+) -> EvaluatedSparseTensor:
   """Merges an evaluated sparse tensor subbatches into a single tensor.
 
   Args:
@@ -600,9 +598,9 @@ def _merge_subbatched_sparse_fetch(
   return EvaluatedSparseTensor(values_fetch, indices_fetch, dense_fetch)
 
 
-def _merge_dense_shapes(tensor_name,
-                        shapes
-                       ):
+def _merge_dense_shapes(tensor_name: str,
+                        shapes: List[Union[List[int], np.ndarray]]
+                       ) -> Dict[str, Union[List[int], np.ndarray]]:
   """Merges subbatches of dense shape arrays.
 
   It takes an arbitrary shape array to infer dimensions. Then, sums the 0th
@@ -621,9 +619,9 @@ def _merge_dense_shapes(tensor_name,
 
 
 def _merge_indices(
-    indices_subbatches,
-    dense_shape_subbatches
-):
+    indices_subbatches: List[Dict[str, np.ndarray]],
+    dense_shape_subbatches: List[Union[List[int], np.ndarray]]
+) -> Dict[str, Union[List[Any], np.ndarray]]:
   """Merges subbatches of indices tensors.
 
   This function merges subbatches for each indices tensor. It essentially
@@ -671,10 +669,10 @@ def _merge_indices(
 
 
 def multithreaded_call(
-    fn,
-    args,
-    worker_count = 0,
-    thread_pool = None):
+    fn: Callable[..., Any],
+    args: Iterable[Tuple[Any, ...]],
+    worker_count: int = 0,
+    thread_pool: Optional[pool.ThreadPool] = None) -> List[Any]:
   """Runs the given function in a thread pool and returns the results.
 
   Args:
@@ -711,15 +709,15 @@ class NumpyEncoder(json.JSONEncoder):
     return json.JSONEncoder.default(self, obj)
 
 
-def decode_list(sequence):
+def decode_list(sequence: List[Union[bytes, str]]) -> List[str]:
   """Converts list elements to unicode if they are of bytes type."""
   return [token.decode() if isinstance(token, bytes) else token
           for token in sequence]
 
 
-def convert_dict_key(key_map,
-                     dict_to_convert,
-                     keep_unmapped_keys = False):
+def convert_dict_key(key_map: Dict[str, str],
+                     dict_to_convert: Dict[str, Any],
+                     keep_unmapped_keys: bool = False) -> Dict[str, Any]:
   """Convert all keys in dictionary to the new key provided in mapping.
 
   Args:
@@ -744,7 +742,7 @@ def convert_dict_key(key_map,
   return d
 
 
-def replace_b64_dict(dict_to_replace):
+def replace_b64_dict(dict_to_replace: Dict[str, Any]):
   """Convert all {'b64': '...'} in dict to a b64 decoded string of the value.
 
   Args:
@@ -756,11 +754,12 @@ def replace_b64_dict(dict_to_replace):
   """
   try:
     return _decode_b64(dict_to_replace)
-  except Exception as e:
+  except Exception as e:  
     raise ValueError("Base64 decode failed: %s" % e)
 
 
-def _decode_b64(data):
+def _decode_b64(data: Union[Dict[str, Union[str, Any]], List[Any],
+                            np.ndarray]):
   """Helper function that decodes {'b64': ...} to a string recursively.
 
   Args:
@@ -784,8 +783,8 @@ def _decode_b64(data):
     return data
 
 
-def top_k_indices_for_batch(batched_array, k = 1
-                           ):
+def top_k_indices_for_batch(batched_array: np.ndarray, k: int = 1
+                           ) -> np.ndarray:
   """Returns top k indices for given batched array.
 
   Args:
@@ -822,8 +821,8 @@ def top_k_indices_for_batch(batched_array, k = 1
 
 
 def merge_feed_dict_with_explain_index(
-    feed, label_indices,
-    output_tensor_name):
+    feed: Dict[str, Any], label_indices: np.ndarray,
+    output_tensor_name: str) -> Dict[str, np.ndarray]:
   """Adds the explain index input to the feed_dict.
 
   Args:
@@ -839,12 +838,12 @@ def merge_feed_dict_with_explain_index(
   return feed
 
 
-def is_explain_index_needed(output_tensor_value):
+def is_explain_index_needed(output_tensor_value: np.ndarray) -> bool:
   """Checks if we need a label index to explain from a multi-class output."""
   return is_multi_class(output_tensor_value.shape)
 
 
-def is_multi_class(output_shape):
+def is_multi_class(output_shape: Tuple[int, ...]) -> bool:
   """Checks if output is multi-class."""
   # If single value output
   if len(output_shape) == 1:
@@ -853,14 +852,14 @@ def is_multi_class(output_shape):
   return True
 
 
-def suffix_dict_keys(in_dict, suffix):
+def suffix_dict_keys(in_dict: Dict[str, Any], suffix: str) -> Dict[str, Any]:
   """Adds the given suffix to all dictionary keys."""
   return {key + suffix: value for key, value in in_dict.items()}
 
 
 def add_gaussian_noise(
-    data,
-    noise_sigma):
+    data: Dict[str, np.ndarray],
+    noise_sigma: Dict[str, float]) -> Dict[str, np.ndarray]:
   """Returns given batch data with gaussian noise added to it.
 
   Args:
@@ -885,3 +884,8 @@ def add_gaussian_noise(
           noise_sigma[feature],  # Standard deviation.
           data[feature].shape)  # Shape.
   return result
+
+
+def remove_empty_vals(input_dict: Dict[str, Any]) -> Dict[str, Any]:
+  """Removes entries from input dict where the value is None."""
+  return {k: v for k, v in input_dict.items() if v is not None}

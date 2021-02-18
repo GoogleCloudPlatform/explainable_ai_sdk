@@ -1,4 +1,4 @@
-# Copyright 2020 Google LLC
+# Copyright 2021 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,20 +15,21 @@
 
 """Model classes for obtaining explanations."""
 import json
-import os
-import re
 
-
+from typing import Any, Dict, List, Optional
 from absl import logging
 import google.auth.credentials
 
-from explainable_ai_sdk.common import explain_metadata
 from explainable_ai_sdk.model import configs
 from explainable_ai_sdk.model import constants
 from explainable_ai_sdk.model import explanation
 from explainable_ai_sdk.model import http_utils
 from explainable_ai_sdk.model import model
-from explainable_ai_sdk.model import utils
+
+_CAIP_ATTRIBUTIONS_KEY = 'attributions_by_label'
+_CAIP_FEATURE_ATTRS_KEY = 'attributions_by_label'
+_UCAIP_ATTRIBUTIONS_KEY = 'attributions'
+_UCAIP_FEATURE_ATTRS_KEY = 'featureAttributions'
 
 
 class AIPlatformModel(model.Model):
@@ -36,82 +37,27 @@ class AIPlatformModel(model.Model):
 
   def __init__(
       self,
-      endpoint,
-      credentials = None):
-    """Constructing basic information of the model.
+      model_endpoint_uri: str,
+      credentials: Optional[google.auth.credentials.Credentials] = None,
+      modality_to_inputs_map: Optional[Dict[str, str]] = None):
+    """Constructs a model backed by an endpoint on AI Platform.
 
     Args:
-      endpoint: an AI Platform model endpoint (i.e.,
-        projects/<project_name>/models/<model_name>/versions/<version_name>)
+      model_endpoint_uri: Full (Unified) AI Platform model path (i.e.,
+        <region>-prediction-aiplatform.googleapis.com/projects/<project_name>/
+        models/<model_name>/versions/<version_name>)
       credentials: The OAuth2.0 credentials to use for GCP services.
+      modality_to_inputs_map: Dictionary from modalities to inputs specified in
+        the metadata.
     """
     self._credentials = credentials
-    self._endpoint = endpoint
-    self._explanation_metadata = self._get_explanation_metadata()
-    self._modality_input_list_map = utils.get_modality_input_list_map(
-        self._explanation_metadata)
-
-  def _get_deployment_uri(self):
-    """A method to get the depolyment uri of the model.
-
-    Returns:
-      A string uri of a gcs bucket.
-
-    Raises:
-      KeyError: This error will be raised if the 'deploymentUri' key is
-        missing from the returned version information.
-    """
-    response = http_utils.make_get_request_to_ai_platform(
-        self._endpoint, self._credentials)
-
-    if 'deploymentUri' not in response:
-      raise KeyError('There is no deploymentUri information in this version')
-
-    return response['deploymentUri']
-
-  def _get_explanation_metadata_uri(self):
-    """A method to get the uri of explanation_metadata.json.
-
-    The method will call the ml service first to get deployment uri,
-    and then append explanation_metadata.json to the uri to return.
-
-    Returns:
-       A uri to explanation_metatdata.json.
-
-    Raises:
-      ValueError: will be raised if the deployment uri is not a valid
-        gcs bucket uri.
-    """
-    gcs_uri = self._get_deployment_uri()
-    match = re.search('gs://(?P<bucket_name>[^/]*)[/]*(?P<directory>.*)',
-                      gcs_uri)
-    if match:
-      object_path = os.path.join(gcs_uri,
-                                 'explanation_metadata.json')
-      return object_path
-
-    raise ValueError('The deployment uri is not a valid GCS bucket')
-
-  def _get_explanation_metadata(self):
-    """A method to get explanation metadata.
-
-    The method will call the ml service first to get deployment uri,
-    and then call the gcs to retrieve explanation metadata.json file.
-
-    Returns:
-       A dictionary of explanation metatdata.
-
-    """
-    explanation_md_uri = self._get_explanation_metadata_uri()
-
-    md = explain_metadata.ExplainMetadata.from_file(explanation_md_uri)
-
-    return md
+    self._model_endpoint_uri = model_endpoint_uri
+    self._modality_to_inputs_map = modality_to_inputs_map
 
   def predict(self,
-              instances,
-              timeout_ms = constants.DEFAULT_TIMEOUT
-             ):
+              instances: List[Any],
+              timeout_ms: int = constants.DEFAULT_TIMEOUT
+             ) -> List[Dict[Any, Any]]:
     """A method to call prediction services with given instances.
 
     Args:
@@ -123,7 +69,7 @@ class AIPlatformModel(model.Model):
     """
     request_body = {'instances': instances}
     response = http_utils.make_post_request_to_ai_platform(
-        self._endpoint + ':predict',
+        self._model_endpoint_uri + ':predict',
         request_body,
         self._credentials,
         timeout_ms)
@@ -131,10 +77,10 @@ class AIPlatformModel(model.Model):
     return response
 
   def explain(self,
-              instances,
-              params = None,
-              timeout_ms = constants.DEFAULT_TIMEOUT
-             ):
+              instances: List[Any],
+              params: configs.AttributionParameters = None,
+              timeout_ms: int = constants.DEFAULT_TIMEOUT
+             ) -> List[explanation.Explanation]:
     """A method to call explanation services with given instances.
 
     Args:
@@ -150,6 +96,8 @@ class AIPlatformModel(model.Model):
       ValueError: When explanation service fails, raise ValueError with the
         returned error message. This is likely due to details or formats of
         the instances are not correct.
+      KeyError: When the explanation dictionary doesn't contain 'attributions'
+        or 'attributions_by_label' in the response.
     """
     if params:
       logging.warn('Params can not be overriden in a remote model at the'
@@ -157,7 +105,7 @@ class AIPlatformModel(model.Model):
     del params
     request_body = {'instances': instances}
     response = http_utils.make_post_request_to_ai_platform(
-        self._endpoint + ':explain',
+        self._model_endpoint_uri + ':explain',
         request_body,
         self._credentials,
         timeout_ms)
@@ -170,8 +118,29 @@ class AIPlatformModel(model.Model):
 
     explanations = []
     for idx, explanation_dict in enumerate(response['explanations']):
-      exp_obj = explanation.Explanation.from_ai_platform_response(
-          explanation_dict, instances[idx], self._modality_input_list_map)
-      explanations.append(exp_obj)
+      if _CAIP_ATTRIBUTIONS_KEY in explanation_dict:  # CAIP response.
+        attrs_key = _CAIP_ATTRIBUTIONS_KEY
+        feature_attrs_key = _CAIP_FEATURE_ATTRS_KEY
+        parse_fun = explanation.Explanation.from_ai_platform_response
+      elif _UCAIP_ATTRIBUTIONS_KEY in explanation_dict:  # uCAIP response.
+        attrs_key = _UCAIP_ATTRIBUTIONS_KEY
+        feature_attrs_key = _UCAIP_FEATURE_ATTRS_KEY
+        parse_fun = explanation.Explanation.from_unified_ai_platform_response
+      else:
+        raise KeyError(
+            'Attribution keys are not present in the AI Platform response.')
+
+      attrs = explanation_dict[attrs_key]
+      if not self._modality_to_inputs_map:
+        self._modality_to_inputs_map = _create_default_modality_map(
+            next(iter(attrs))[feature_attrs_key])
+      explanations.append(
+          parse_fun(attrs, instances[idx], self._modality_to_inputs_map))
 
     return explanations
+
+
+def _create_default_modality_map(
+    attribution: Dict[str, Any]) -> Dict[str, List[str]]:
+  """Creates default modality map for the given explanation dict."""
+  return {constants.ALL_MODALITY: list(attribution.keys())}

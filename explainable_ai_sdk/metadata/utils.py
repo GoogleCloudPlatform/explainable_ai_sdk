@@ -1,4 +1,4 @@
-# Copyright 2020 Google LLC
+# Copyright 2021 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,11 +17,11 @@
 
 import json
 import os
-
+from typing import Dict, Text, Any
 import tensorflow as tf
 
 
-def write_metadata_to_file(md_dict, base_path):
+def write_metadata_to_file(md_dict: Dict[Text, Any], base_path: Text):
   """Write explanation metadata json to given folder."""
   md_path = os.path.join(
       tf.compat.as_bytes(base_path),

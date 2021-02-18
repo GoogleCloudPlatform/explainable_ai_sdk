@@ -1,4 +1,4 @@
-# Copyright 2020 Google LLC
+# Copyright 2021 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,18 +14,15 @@
 
 
 """Tests for graph_metadata_builder."""
-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import json
 import os
+from absl.testing import parameterized
 import tensorflow.compat.v1 as tf
+from explainable_ai_sdk.metadata import parameters
 from explainable_ai_sdk.metadata.tf.v1 import graph_metadata_builder
 
 
-class GraphMetadataBuilderTest(tf.test.TestCase):
+class GraphMetadataBuilderTest(tf.test.TestCase, parameterized.TestCase):
 
   @classmethod
   def setUpClass(cls):
@@ -96,20 +93,46 @@ class GraphMetadataBuilderTest(tf.test.TestCase):
     }
     self.assertDictEqual(expected_input_md, md_dict['inputs'])
 
-  def test_add_image_metadata(self):
+  @parameterized.named_parameters(
+      ('dict_input', {'type': 'Pixels'}),
+      ('typed_input', parameters.VisualizationParameters(
+          type=parameters.VisualizationType.PIXELS)))
+  def test_add_image_metadata_visualization(self, viz_params):
     builder = graph_metadata_builder.GraphMetadataBuilder()
-    builder.add_image_metadata(self.x, visualization={'type': 'Pixels'})
+    builder.add_image_metadata(self.x, visualization=viz_params)
     md_dict = builder.get_metadata()
     expected_input_md = {
         'inp': {
             'visualization': {
-                'type': 'Pixels'
+                'type': 'pixels'
             },
             'input_tensor_name': 'inp:0',
             'encoding': 'identity',
             'modality': 'image'
         }
     }
+    self.assertDictEqual(expected_input_md, md_dict['inputs'])
+
+  @parameterized.named_parameters(
+      ('no_domain', None, {}),
+      ('partial_domain', parameters.DomainInfo(-1., 1.), {
+          'domain': {
+              'min': -1.,
+              'max': 1.
+          }
+      }))
+  def test_add_image_metadata_domain(self, domain, domain_dict):
+    builder = graph_metadata_builder.GraphMetadataBuilder()
+    builder.add_image_metadata(self.x, domain=domain)
+    md_dict = builder.get_metadata()
+    expected_input_md = {
+        'inp': {
+            'input_tensor_name': 'inp:0',
+            'encoding': 'identity',
+            'modality': 'image'
+        }
+    }
+    expected_input_md['inp'].update(domain_dict)
     self.assertDictEqual(expected_input_md, md_dict['inputs'])
 
   def test_add_text_metadata(self):
@@ -160,7 +183,7 @@ class GraphMetadataBuilderTest(tf.test.TestCase):
         'inputs': {
             'Add': {
                 'visualization': {
-                    'type': 'Pixels'
+                    'type': 'pixels'
                 },
                 'input_tensor_name': 'Add:0',
                 'encoding': 'identity',

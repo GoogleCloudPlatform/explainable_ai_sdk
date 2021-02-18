@@ -1,4 +1,4 @@
-# Copyright 2020 Google LLC
+# Copyright 2021 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,13 +30,9 @@ used for patch field.
 For more information about semantic versioning: https://semver.org/
 """
 
-from __future__ import absolute_import
-from __future__ import division
-
-from __future__ import print_function
 
 import re
-
+from typing import Tuple
 
 
 # Only digits, with no leading zeros.
@@ -58,11 +54,11 @@ class ParseError(Exception):
 class SemanticVersion(object):
   """Object to hold a parsed semantic version string."""
 
-  def __init__(self, version):
+  def __init__(self, version: str):
     """Creates a SemanticVersion object from the given version string.
 
     Args:
-      version: str, The version string to parse.
+      version: The version string to parse.
 
     Raises:
       ParseError: If the version could not be correctly parsed.
@@ -74,7 +70,7 @@ class SemanticVersion(object):
      self.label) = SemanticVersion._from_string(version)
 
   @classmethod
-  def _from_string(cls, version):
+  def _from_string(cls, version: str) -> Tuple[int, int, int, str]:
     """Parse the given version string into its parts."""
     if version is None:
       raise ParseError(
@@ -95,22 +91,22 @@ class SemanticVersion(object):
     return (int(parts['major']), int(parts['minor']), int(parts['patch']),
             parts['label'])
 
-  def to_string(self):
+  def to_string(self) -> str:
     """Returns the string representation of this version."""
     if not self.label:
       return '{}.{}.{}'.format(self.major, self.minor, self.patch)
     return '{}.{}.{}-{}'.format(self.major, self.minor, self.patch, self.label)
 
   @classmethod
-  def _cmp_tuples(cls, x, y):
+  def _cmp_tuples(cls, x: Tuple[int, ...], y: Tuple[int, ...]) -> int:
     """Just a helper equivalent to the cmp() function in Python 2."""
     return (x > y) - (x < y)
 
-  def _compare(self, other):
+  def _compare(self, other: 'SemanticVersion') -> int:
     """Compare this SemanticVersion to other.
 
     Args:
-      other: SemanticVersion, the other version to compare this one to.
+      other: The other version to compare this one to.
 
     Returns:
       1 if self > other, -1 if other > self, 0 if equal.
@@ -120,22 +116,22 @@ class SemanticVersion(object):
         (self.major, self.minor, self.patch),
         (other.major, other.minor, other.patch))
 
-  def __eq__(self, other):
+  def __eq__(self, other: 'SemanticVersion') -> bool:
     return other and (
         (self.major, self.minor, self.patch, self.label) ==
         (other.major, other.minor, other.patch, other.label))
 
-  def __ne__(self, other):
+  def __ne__(self, other: 'SemanticVersion') -> bool:
     return not self == other
 
-  def __gt__(self, other):
+  def __gt__(self, other: 'SemanticVersion') -> bool:
     return self._compare(other) > 0
 
-  def __lt__(self, other):
+  def __lt__(self, other: 'SemanticVersion') -> bool:
     return self._compare(other) < 0
 
-  def __ge__(self, other):
+  def __ge__(self, other: 'SemanticVersion') -> bool:
     return not self < other
 
-  def __le__(self, other):
+  def __le__(self, other: 'SemanticVersion') -> bool:
     return not self > other

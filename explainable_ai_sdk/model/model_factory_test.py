@@ -1,4 +1,4 @@
-# Copyright 2020 Google LLC
+# Copyright 2021 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,34 +16,52 @@
 """Tests for model_factory."""
 import mock
 import tensorflow.compat.v1 as tf
+from explainable_ai_sdk.common import explain_metadata
 from explainable_ai_sdk.model import ai_platform_model
 from explainable_ai_sdk.model import model_factory
+from explainable_ai_sdk.model import utils
 
 
 class ModelFactoryTest(tf.test.TestCase):
 
-  @mock.patch.object(
-      ai_platform_model.AIPlatformModel, '__init__', autospec=True)
-  def test_load_model_from_ai_platform(self, mock_constructor):
-    model_factory.register_remote_model(ai_platform_model.AIPlatformModel)
-    mock_constructor.return_value = None
-    model_factory.load_model_from_ai_platform('fake_project', 'fake_model',
-                                              'fake_version')
-    self.assertTrue(mock_constructor.called)
+  def setUp(self):
+    super(ModelFactoryTest, self).setUp()
+    self.addCleanup(mock.patch.stopall)
+    mock.patch.object(
+        utils,
+        'fetch_explanation_metadata',
+        return_value=explain_metadata.ExplainMetadata(
+            inputs=[], framework='xgboost')).start()
 
-  @mock.patch.object(
-      ai_platform_model.AIPlatformModel, '__init__', autospec=True)
-  def test_load_model_from_ai_platform_without_version(self, mock_constructor):
-    model_factory.register_remote_model(ai_platform_model.AIPlatformModel)
+  def test_load_model_from_ai_platform(self):
+    model_factory.register_caip_model(ai_platform_model.AIPlatformModel)
+    model = model_factory.load_model_from_ai_platform(
+        'fake_project', 'fake_model', 'fake_version')
+    self.assertIsInstance(model, ai_platform_model.AIPlatformModel)
+    self.assertEqual(
+        'https://ml.googleapis.com/v1/projects/fake_project/'
+        'models/fake_model/versions/fake_version',
+        model._model_endpoint_uri)
 
-    def side_effect(self, endpoint, unused_credentials):
-      self.endpoint = endpoint
-
-    mock_constructor.side_effect = side_effect
+  def test_load_model_from_ai_platform_without_version(self):
+    model_factory.register_caip_model(ai_platform_model.AIPlatformModel)
     model = model_factory.load_model_from_ai_platform('fake_project',
                                                       'fake_model')
-    expected_endpoint = 'projects/fake_project/models/fake_model'
-    self.assertTrue(model.endpoint, expected_endpoint)
+    self.assertIsInstance(model, ai_platform_model.AIPlatformModel)
+    self.assertEqual(
+        'https://ml.googleapis.com/v1/projects/fake_project/'
+        'models/fake_model',
+        model._model_endpoint_uri)
+
+  def test_load_model_from_unified_ai_platform(self):
+    model_factory.register_ucaip_model(ai_platform_model.AIPlatformModel)
+    model = model_factory.load_model_from_unified_ai_platform(
+        'fake_project', 'fake_region', 'fake_endpoint')
+    self.assertIsInstance(model, ai_platform_model.AIPlatformModel)
+    self.assertEqual(
+        'https://fake_region-prediction-aiplatform.googleapis.com/v1beta1/'
+        'projects/fake_project/locations/fake_region/endpoints/fake_endpoint',
+        model._model_endpoint_uri)
 
   def test_load_model_from_ai_platform_not_implemented(self):
     # Make sure the registry is empty.

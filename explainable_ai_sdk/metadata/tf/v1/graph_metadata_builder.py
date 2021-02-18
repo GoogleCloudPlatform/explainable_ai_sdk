@@ -1,4 +1,4 @@
-# Copyright 2020 Google LLC
+# Copyright 2021 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,17 +27,12 @@ adding inputs and output is complete, metadata can be exported as a file along
 with a saved model via save_model_with_metadata(...) function. This folder is
 ready to be deployed to AI Platform with explainability flags.
 """
-
-from __future__ import absolute_import
-from __future__ import division
-
-from __future__ import print_function
-
-
+from typing import Dict, Text, Optional, List, Any, Set, Union
 import tensorflow.compat.v1 as tf
 from explainable_ai_sdk.common import explain_metadata
 from explainable_ai_sdk.metadata import constants
 from explainable_ai_sdk.metadata import metadata_builder
+from explainable_ai_sdk.metadata import parameters
 from explainable_ai_sdk.metadata import utils as common_utils
 from explainable_ai_sdk.metadata.tf.v1 import utils
 
@@ -46,10 +41,10 @@ class GraphMetadataBuilder(metadata_builder.MetadataBuilder):
   """Class for generating metadata for models built with low-level TF API."""
 
   def __init__(self,
-               session = None,
-               serving_inputs = None,
-               serving_outputs = None,
-               tags = (tf.saved_model.tag_constants.SERVING,),
+               session: tf.Session = None,
+               serving_inputs: Optional[Dict[Text, tf.Tensor]] = None,
+               serving_outputs: Optional[Dict[Text, tf.Tensor]] = None,
+               tags: Set[Text] = (tf.saved_model.tag_constants.SERVING,),
                **kwargs):
     """Initializes a GraphMetadataBuilder object.
 
@@ -74,16 +69,18 @@ class GraphMetadataBuilder(metadata_builder.MetadataBuilder):
 
   def _add_input_metadata(
       self,
-      input_tensor,
-      name = None,
-      encoded_tensor = None,
-      encoding = explain_metadata.Encoding.IDENTITY,
-      input_baselines = None,
-      encoded_baselines = None,
-      modality = None,
-      visualization = None,
-      index_feature_mapping = None):
-    """Internal add metadata function that creates an InputMetadata object.
+      input_tensor: tf.Tensor,
+      name: Optional[Text] = None,
+      encoded_tensor: Optional[tf.Tensor] = None,
+      encoding: Optional[Text] = explain_metadata.Encoding.IDENTITY,
+      input_baselines: Optional[List[Any]] = None,
+      encoded_baselines: Optional[List[Any]] = None,
+      modality: Optional[Text] = None,
+      visualization: Optional[Union[Dict[str, str],
+                                    parameters.VisualizationParameters]] = None,
+      index_feature_mapping: Optional[List[Any]] = None,
+      domain: Optional[parameters.DomainInfo] = None):
+    """Creates an InputMetadata object.
 
     Args:
       input_tensor: Input tensor for the metadata.
@@ -95,9 +92,11 @@ class GraphMetadataBuilder(metadata_builder.MetadataBuilder):
       encoded_baselines: A list of baselines for the encoded tensor.
       modality: Modality of the input. One of the values in
         explain_metadata.Modality.
-      visualization: Visualization parameters for image inputs.
+      visualization: Visualization parameters for image inputs. It can either be
+        a dictionary of inputs or VisualizationParameters.
       index_feature_mapping: A list of feature names for each index in the input
         tensor.
+      domain: DomainInfo object specifying the range of the input feature.
     """
     input_name = name if name else input_tensor.op.name
     encoded_tensor_name = (encoded_tensor.name if encoded_tensor is not None
@@ -106,6 +105,10 @@ class GraphMetadataBuilder(metadata_builder.MetadataBuilder):
       raise ValueError('Input tensor %s already exists' % input_name)
     if input_name in [input_md.name for input_md in self._inputs.values()]:
       raise ValueError('Input name %s already exists' % input_name)
+    domain_dict = domain.asdict() if domain else None
+    if (visualization and
+        isinstance(visualization, parameters.VisualizationParameters)):
+      visualization = visualization.asdict()
     self._inputs[input_tensor.name] = explain_metadata.InputMetadata(
         name=input_name,
         input_tensor_name=input_tensor.name,
@@ -115,13 +118,14 @@ class GraphMetadataBuilder(metadata_builder.MetadataBuilder):
         encoded_baselines=encoded_baselines,
         modality=modality,
         visualization=visualization,
-        index_feature_mapping=index_feature_mapping)
+        index_feature_mapping=index_feature_mapping,
+        domain=domain_dict)
 
   def add_numeric_metadata(self,
-                           input_tensor,
-                           name = None,
-                           input_baselines = None,
-                           index_feature_mapping = None):
+                           input_tensor: tf.Tensor,
+                           name: Optional[Text] = None,
+                           input_baselines: Optional[List[Any]] = None,
+                           index_feature_mapping: Optional[List[Any]] = None):
     """Adds a numeric (float) tensor as input metadata.
 
     Args:
@@ -147,12 +151,12 @@ class GraphMetadataBuilder(metadata_builder.MetadataBuilder):
         modality=explain_metadata.Modality.NUMERIC)
 
   def add_categorical_metadata(self,
-                               input_tensor,
-                               encoded_tensor,
-                               encoding,
-                               name = None,
-                               input_baselines = None,
-                               encoded_baselines = None):
+                               input_tensor: tf.Tensor,
+                               encoded_tensor: tf.Tensor,
+                               encoding: Text,
+                               name: Optional[Text] = None,
+                               input_baselines: Optional[List[Any]] = None,
+                               encoded_baselines: Optional[List[Any]] = None):
     """Adds a categorical input as input metadata.
 
     Args:
@@ -179,11 +183,14 @@ class GraphMetadataBuilder(metadata_builder.MetadataBuilder):
         encoded_baselines,
         modality=explain_metadata.Modality.CATEGORICAL)
 
-  def add_image_metadata(self,
-                         input_tensor,
-                         name = None,
-                         input_baselines = None,
-                         visualization = None):
+  def add_image_metadata(
+      self,
+      input_tensor: tf.Tensor,
+      name: Optional[str] = None,
+      input_baselines: Optional[List[Any]] = None,
+      visualization: Optional[Union[Dict[str, str],
+                                    parameters.VisualizationParameters]] = None,
+      domain: Optional[parameters.DomainInfo] = None):
     """Adds a new tensor representing image as input metadata.
 
     Args:
@@ -193,21 +200,28 @@ class GraphMetadataBuilder(metadata_builder.MetadataBuilder):
       input_baselines: A list of baseline values. Each baseline value can be a
         single entity or of the same shape as the input_tensor (except for the
         batch dimension).
-      visualization: A dictionary mapping from keys {type} to values {pixel,
-        region}.
+      visualization: Either a dictionary of visualization parameters or
+        VisualizationParameters instance. Using VisualizationParameters is
+        recommended. If None, a default visualization will be selected based on
+        the explanation method (IG/XRAI).
+      domain: DomainInfo object specifying the range of the input feature.
     """
     self._add_input_metadata(
-        input_tensor, name, input_baselines=input_baselines,
-        modality=explain_metadata.Modality.IMAGE, visualization=visualization)
+        input_tensor,
+        name,
+        input_baselines=input_baselines,
+        modality=explain_metadata.Modality.IMAGE,
+        visualization=visualization,
+        domain=domain)
 
   def add_text_metadata(
       self,
-      input_tensor,
-      encoded_tensor = None,
-      encoding = explain_metadata.Encoding.IDENTITY,
-      name = None,
-      input_baselines = None,
-      encoded_baselines = None):
+      input_tensor: tf.Tensor,
+      encoded_tensor: Optional[tf.Tensor] = None,
+      encoding: Optional[Text] = explain_metadata.Encoding.IDENTITY,
+      name: Optional[Text] = None,
+      input_baselines: Optional[List[Any]] = None,
+      encoded_baselines: Optional[List[Any]] = None):
     """Adds a new tensor representing text input as input metadata.
 
     Args:
@@ -230,8 +244,8 @@ class GraphMetadataBuilder(metadata_builder.MetadataBuilder):
         encoded_baselines, modality=explain_metadata.Modality.TEXT)
 
   def add_output_metadata(self,
-                          output_tensor,
-                          name = None):
+                          output_tensor: tf.Tensor,
+                          name: Optional[Text] = None):
     """Adds output tensor as output metadata.
 
     Only one output metadata can be added.
@@ -248,7 +262,7 @@ class GraphMetadataBuilder(metadata_builder.MetadataBuilder):
     self._outputs[output_tensor.name] = explain_metadata.OutputMetadata(
         name=output_name, output_tensor_name=output_tensor.name)
 
-  def get_metadata(self):
+  def get_metadata(self) -> Dict[Text, Any]:
     """Returns the current metadata."""
     current_md = explain_metadata.ExplainMetadata(
         inputs=list(self._inputs.values()),
@@ -267,7 +281,7 @@ class GraphMetadataBuilder(metadata_builder.MetadataBuilder):
     return {md.name: graph.get_tensor_by_name(md.output_tensor_name)
             for md in md_entries.values()}
 
-  def save_model_with_metadata(self, file_path):
+  def save_model_with_metadata(self, file_path: Text):
     """Saves the model and the generated metadata to the given file path.
 
     Args:

@@ -1,4 +1,4 @@
-# Copyright 2020 Google LLC
+# Copyright 2021 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,20 +15,19 @@
 
 """HTTP-related util functions in SDK."""
 
-import os
-
-import requests
+from typing import Any, Dict, Optional
 
 import google.auth
 import google.auth.credentials
 import google.auth.transport.requests
+import requests
 
 from explainable_ai_sdk.model import constants
 
 
 def _get_request_header(
-    credentials = None
-):
+    credentials: Optional[google.auth.credentials.Credentials] = None
+) -> Dict[str, Any]:
   """Gets a request header.
 
   Args:
@@ -78,14 +77,13 @@ def _handle_ai_platform_response(uri, response):
 
 
 def make_get_request_to_ai_platform(
-    uri_params_str,
-    credentials = None,
-    timeout_ms = constants.DEFAULT_TIMEOUT):
+    uri: str,
+    credentials: Optional[google.auth.credentials.Credentials] = None,
+    timeout_ms: int = constants.DEFAULT_TIMEOUT):
   """Makes a get request to AI Platform.
 
   Args:
-    uri_params_str: A string representing uri parameters (e.g.,
-      projects/<proj_name>/models/<model_name>/versions/<version_name>).
+    uri: URI of the model resource.
     credentials: The OAuth2.0 credentials to use for GCP services.
     timeout_ms: Timeout for each service call to the api (in milliseconds).
 
@@ -93,27 +91,20 @@ def make_get_request_to_ai_platform(
     Request results in json format.
   """
   headers = _get_request_header(credentials)
-  ai_platform_endpoint = (
-      os.getenv('CLOUDSDK_API_ENDPOINT_OVERRIDES_ML') or
-      constants.CAIP_API_ENDPOINT)
-
-  uri = os.path.join(
-      ai_platform_endpoint, constants.CAIP_API_ENDPOINT_VERSION, uri_params_str)
 
   r = requests.get(uri, headers=headers, timeout=timeout_ms)
   return _handle_ai_platform_response(uri, r)
 
 
 def make_post_request_to_ai_platform(
-    uri_params_str,
-    request_body,
-    credentials = None,
-    timeout_ms = constants.DEFAULT_TIMEOUT):
+    uri: str,
+    request_body: Dict[str, Any],
+    credentials: Optional[google.auth.credentials.Credentials] = None,
+    timeout_ms: int = constants.DEFAULT_TIMEOUT):
   """Makes a post request to AI Platform.
 
   Args:
-    uri_params_str: A string representing uri parameters (e.g.,
-      projects/<proj_name>/models/<model_name>/versions/<version_name>).
+    uri: URI of the model resource.
     request_body: A dict for the request body
     credentials: The OAuth2.0 credentials to use for GCP services.
     timeout_ms: Timeout for each service call to the api (in milliseconds).
@@ -122,11 +113,6 @@ def make_post_request_to_ai_platform(
     Request results in json format.
   """
   headers = _get_request_header(credentials)
-  ai_platform_endpoint = (
-      os.getenv('CLOUDSDK_API_ENDPOINT_OVERRIDES_ML') or
-      constants.CAIP_API_ENDPOINT)
-  uri = os.path.join(
-      ai_platform_endpoint, constants.CAIP_API_ENDPOINT_VERSION, uri_params_str)
 
   r = requests.post(uri, headers=headers, json=request_body, timeout=timeout_ms)
   return _handle_ai_platform_response(uri, r)

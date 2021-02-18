@@ -1,4 +1,4 @@
-# Copyright 2020 Google LLC
+# Copyright 2021 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ import os
 import numpy as np
 import tensorflow.compat.v1 as tf
 import tensorflow.compat.v1.keras as keras
+from explainable_ai_sdk.metadata import parameters
 from explainable_ai_sdk.metadata.tf.v1 import keras_metadata_builder
 
 
@@ -104,7 +105,7 @@ class KerasGraphMetadataBuilderTest(tf.test.TestCase):
     subclassed_model = MyModel()
     subclassed_model.compile(loss='categorical_crossentropy')
     x_train = np.random.random((1, 100))
-    y_train = np.random.randint(2, size=(1, 1))
+    y_train = np.random.randint(2, size=(1, 2))
     subclassed_model.fit(x_train, y_train, batch_size=1, epochs=1)
 
     builder = keras_metadata_builder.KerasGraphMetadataBuilder(subclassed_model)
@@ -194,7 +195,9 @@ class KerasGraphMetadataBuilderTest(tf.test.TestCase):
     builder.set_image_metadata(
         self.seq_model.inputs[0],
         name='image_input',
-        visualization={'type': 'Pixels'})
+        visualization=parameters.VisualizationParameters(
+            parameters.VisualizationType.PIXELS),
+        domain=parameters.DomainInfo(0.1, 0.2, 0.3))
     generated_md = builder.get_metadata()
     expected_inputs = {
         'image_input': {
@@ -202,8 +205,9 @@ class KerasGraphMetadataBuilderTest(tf.test.TestCase):
             'encoding': 'identity',
             'modality': 'image',
             'visualization': {
-                'type': 'Pixels'
-            }
+                'type': 'pixels'
+            },
+            'domain': {'min': 0.1, 'max': 0.2, 'original_mean': 0.3}
         }
     }
     self.assertDictEqual(expected_inputs, generated_md['inputs'])

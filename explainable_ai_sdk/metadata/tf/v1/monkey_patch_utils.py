@@ -1,4 +1,4 @@
-# Copyright 2020 Google LLC
+# Copyright 2021 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -64,11 +64,11 @@ from __future__ import division
 from __future__ import print_function
 
 import contextlib
-
+from typing import Any, Callable, Dict, Text, List, Set, Union, Optional
 from six.moves import zip
 import tensorflow.compat.v1 as tf
 
-from tensorflow.python.feature_column import feature_column_v2 as fc2
+from tensorflow.python.feature_column import feature_column_v2 as fc2  
 from tensorflow_estimator.python.estimator.canned import prediction_keys
 from tensorflow_estimator.python.estimator.export import export_lib
 
@@ -91,8 +91,8 @@ class FeatureTensors(object):
 
   def __init__(
       self,
-      input_tensor,
-      encoded_tensors = ()):
+      input_tensor: Union[tf.Tensor, fc2.CategoricalColumn.IdWeightPair],
+      encoded_tensors: List[tf.Tensor] = ()):
     """Initialize a FeatureTensors object.
 
     Args:
@@ -128,21 +128,21 @@ class EstimatorMonkeyPatchHelper(object):
     self._crossed_columns = set()
 
   @property
-  def feature_tensors_dict(self):
+  def feature_tensors_dict(self) -> Dict[Text, List[FeatureTensors]]:
     return self._feature_tensors_dict
 
   @property
-  def output_tensors_dict(self):
+  def output_tensors_dict(self) -> Dict[Text, tf.Tensor]:
     return self._output_tensors_dict
 
   @property
-  def crossed_columns(self):
+  def crossed_columns(self) -> Set[Text]:
     return self._crossed_columns
 
   def _make_observing_export_outputs_for_mode(
-      self, old_fn,
-      observing_dict,
-      output_key = None):
+      self, old_fn: Callable[..., Any],
+      observing_dict: Dict[Text, tf.Tensor],
+      output_key: Optional[Text] = None) -> Callable[..., Any]:
     """Make an observing function that records output tensors.
 
     When a model is exported, export_outputs_for_mode() function is called. We
@@ -190,9 +190,9 @@ class EstimatorMonkeyPatchHelper(object):
     return _observing_export_outputs_for_mode
 
   def _make_observing_get_dense_tensor(
-      self, old_fn,
-      feature_tensors,
-      crossed_columns):
+      self, old_fn: Callable[..., Any],
+      feature_tensors: Dict[Text, List[FeatureTensors]],
+      crossed_columns: Set[Text]) -> Callable[..., Any]:
     """Returns a function that wraps get_dense_tensors and observes arguments.
 
     The returned function can be used to replace get_dense_tensor() of feture
@@ -233,9 +233,9 @@ class EstimatorMonkeyPatchHelper(object):
 
   def _add_input_tensor_to_dict(
       self,
-      feature_tensors,
-      fc,
-      tensor):
+      feature_tensors: Dict[Text, List[FeatureTensors]],
+      fc: fc2.FeatureColumn,
+      tensor: tf.Tensor):
     """Add input tensor to list of FeatureTensors."""
     feature_tensors_list = feature_tensors.get(fc.name, [])
     if tensor not in [feature.input_tensor for feature in feature_tensors_list]:
@@ -244,9 +244,9 @@ class EstimatorMonkeyPatchHelper(object):
 
   def _add_encoded_tensor_to_dict(
       self,
-      feature_tensors,
-      fc,
-      tensor):
+      feature_tensors: Dict[Text, List[FeatureTensors]],
+      fc: fc2.FeatureColumn,
+      tensor: tf.Tensor):
     """Add encoded tensor to list of FeatureTensors."""
     if fc.name not in feature_tensors:
       raise ValueError('Trying to add encoded tensors with no input tensor.')
@@ -255,9 +255,9 @@ class EstimatorMonkeyPatchHelper(object):
       feature_tensor.encoded_tensors.append(tensor)
 
   def _make_observing_get_sparse_tensors(
-      self, old_fn,
-      feature_tensors
-  ):
+      self, old_fn: Callable[..., Any],
+      feature_tensors: Dict[Text, List[FeatureTensors]]
+  ) -> Callable[..., Any]:
     """Returns a function that wraps get_sparse_tensors and observes arguments.
 
     The returned function can be used to replace get_sparse_tensors function of
@@ -285,9 +285,9 @@ class EstimatorMonkeyPatchHelper(object):
     return _observing_get_sparse_tensors
 
   def _make_observing_create_weighted_sum(
-      self, old_fn,
-      feature_tensors,
-      crossed_columns):
+      self, old_fn: Callable[..., Any],
+      feature_tensors: Dict[Text, List[FeatureTensors]],
+      crossed_columns: Set[Text]):
     """Make an observing function for LinearEstimators."""
 
     def _observing_create_weighted_sum(column, *args, **kwargs):
@@ -308,8 +308,8 @@ class EstimatorMonkeyPatchHelper(object):
     return _observing_create_weighted_sum
 
   def _make_observing_transform_features_v2(
-      self, old_fn,
-      feature_tensors):
+      self, old_fn: Callable[..., Any],
+      feature_tensors: Dict[Text, List[FeatureTensors]]):
     """Make an observing function for _transform_features_v2 of fc2."""
 
     def _observing_transform_features_v2(features, feature_columns, *args,
@@ -328,9 +328,9 @@ class EstimatorMonkeyPatchHelper(object):
 
     return _observing_transform_features_v2
 
-  def _patch_entities(self, objects_to_patch, attr_name,
-                      patching_function,
-                      **kwargs):
+  def _patch_entities(self, objects_to_patch: List[Any], attr_name: Text,
+                      patching_function: Callable[..., Any],
+                      **kwargs: Any) -> List[Callable[..., Any]]:
     """Patch given set of object's function with provided function.
 
     Args:
@@ -351,8 +351,8 @@ class EstimatorMonkeyPatchHelper(object):
       originals.append(original)
     return originals
 
-  def _unpatch_entities(self, objects_patched, attr_name,
-                        originals):
+  def _unpatch_entities(self, objects_patched: List[Any], attr_name: Text,
+                        originals: List[Callable[..., Any]]):
     """Replaces patched object with the originals.
 
     Args:
@@ -363,7 +363,7 @@ class EstimatorMonkeyPatchHelper(object):
     for patched_object, original_fun in zip(objects_patched, originals):
       setattr(patched_object, attr_name, original_fun)
 
-  def _patch_estimator_to_observe(self, output_key = None):
+  def _patch_estimator_to_observe(self, output_key: Optional[Text] = None):
     """Patch all functions to observe tensor creation."""
     # Patch get_dense_tensor() for all dense feature columns.
     self._actual_get_dense_tensor_list = self._patch_entities(
@@ -418,7 +418,7 @@ class EstimatorMonkeyPatchHelper(object):
                            [self._actual_transform])
 
   @contextlib.contextmanager
-  def exporting_context(self, output_key = None):
+  def exporting_context(self, output_key: Optional[Text] = None):
     """Context for exporting the estimator.
 
     Args:

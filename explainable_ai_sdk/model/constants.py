@@ -1,4 +1,4 @@
-# Copyright 2020 Google LLC
+# Copyright 2021 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,4 +25,10 @@ DEFAULT_TIMEOUT = 1200
 USER_AGENT_FOR_CAIP_TRACKING = 'xai-sdk/' + version.__version__
 
 CAIP_API_ENDPOINT = 'https://ml.googleapis.com/'
+CAIP_API_REGION_ENDPOINT = 'https://{region}-ml.googleapis.com/'
 CAIP_API_ENDPOINT_VERSION = 'v1'
+
+UCAIP_PREDICTION_API_ENDPOINT = 'https://{region}-prediction-aiplatform.googleapis.com'
+UCAIP_API_ENDPOINT_VERSION = 'v1beta1'
+
+AIP_ENDPOINT_OVERRIDE = 'CLOUDSDK_API_ENDPOINT_OVERRIDES_ML'

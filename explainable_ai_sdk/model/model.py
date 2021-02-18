@@ -1,4 +1,4 @@
-# Copyright 2020 Google LLC
+# Copyright 2021 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 
 import abc
 
-
+from typing import Any, Dict, List
 
 from explainable_ai_sdk.model import configs
 from explainable_ai_sdk.model import explanation
@@ -29,7 +29,7 @@ class Model(_ABC):
   """Base class for model related operations in SDK."""
 
   @abc.abstractmethod
-  def predict(self, instances):
+  def predict(self, instances: List[Any]) -> List[Dict[Any, Any]]:
     """Calls prediction services/libraries with the given instances.
 
     Args:
@@ -43,9 +43,9 @@ class Model(_ABC):
   @abc.abstractmethod
   def explain(
       self,
-      instances,
-      params = None
-  ):
+      instances: List[Any],
+      params: configs.AttributionParameters = None
+  ) -> List[explanation.Explanation]:
     """Calls explanation services/libraries with the given instances.
 
     Args:
