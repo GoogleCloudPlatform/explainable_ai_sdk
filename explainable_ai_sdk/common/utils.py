@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 """Utilities for explanations for all frameworks.
 """
 
@@ -228,7 +227,7 @@ def concat(instances: List[Dict[Any, Any]],
         columns[k] = []
       if not isinstance(v, (np.ndarray, list)):
         raise ValueError("Values to be concatenated should be an array. "
-                         "Got: %s." % v)
+                         "Got: {}.".format(v))
       columns[k].extend(v)
   return columns
 
@@ -278,7 +277,7 @@ def rowify(columns: Dict[Any, Any]) -> List[Dict[str, Any]]:
   if len(sizes_set) > 1:
     sizes_dict = {name: e.shape[0] for name, e in six.iteritems(columns_np)}
     raise ValueError("All the elements in the length array should be identical."
-                     " See the inputs and their size: %s." % sizes_dict)
+                     " See the inputs and their size: {}.".format(sizes_dict))
 
   # Pick an arbitrary value in the map to get its size.
   num_instances = len(next(six.itervalues(columns_np)))
@@ -737,8 +736,8 @@ def convert_dict_key(key_map: Dict[str, str],
       d[k] = v
     else:
       # This will only happen when we have an invalid explain metadata.
-      raise ValueError("Conversion failed. Key %s not in key map %s." %
-                       (k, repr(key_map)))
+      raise ValueError("Conversion failed. Key {} not in key map {}.".format(
+          k, repr(key_map)))
   return d
 
 
@@ -755,7 +754,7 @@ def replace_b64_dict(dict_to_replace: Dict[str, Any]):
   try:
     return _decode_b64(dict_to_replace)
   except Exception as e:  
-    raise ValueError("Base64 decode failed: %s" % e)
+    raise ValueError("Base64 decode failed: {}".format(e))
 
 
 def _decode_b64(data: Union[Dict[str, Union[str, Any]], List[Any],

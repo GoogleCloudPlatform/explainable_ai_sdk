@@ -121,5 +121,6 @@ class ExplanationTest(tf.test.TestCase):
           print_label_index=False)
       self.assertNotIn('Label Index ', mock_stdout.getvalue())
 
+
 if __name__ == '__main__':
   tf.test.main()

@@ -110,6 +110,20 @@ class FeatureTensors(object):
   def encoded_tensors(self):
     return self._encoded_tensors
 
+  def __contains__(
+      self,
+      tensor: Union[tf.Tensor, fc2.CategoricalColumn.IdWeightPair]) -> bool:
+    """Checks if tensors for the feature contains the given tensor."""
+    if isinstance(tensor, tf.Tensor):
+      return (self._input_tensor == tensor or
+              any([tensor == encoded for encoded in self._encoded_tensors]))
+    elif isinstance(tensor, fc2.CategoricalColumn.IdWeightPair):
+      if not isinstance(self._input_tensor, fc2.CategoricalColumn.IdWeightPair):
+        return False
+      # Check equivalence of any tensor of the sparse tensor tuple.
+      return tensor.id_tensor.values == self._input_tensor.id_tensor.values
+    return False
+
 
 class EstimatorMonkeyPatchHelper(object):
   """Monkey patches functions to observe important tensors in Estimators."""
@@ -172,17 +186,18 @@ class EstimatorMonkeyPatchHelper(object):
                                            metrics=None):
       """Wrapper around export_outputs_for_mode that observes arguments."""
       pred_keys = prediction_keys.PredictionKeys
-      if output_key:
-        if output_key not in predictions:
-          raise ValueError('Output key %s is not found.' % output_key)
-        observing_dict[output_key] = predictions[output_key]
-      elif pred_keys.LOGITS in predictions:
-        observing_dict[pred_keys.LOGITS] = predictions[pred_keys.LOGITS]
-      elif pred_keys.PREDICTIONS in predictions:
-        observing_dict[pred_keys.PREDICTIONS] = predictions[
-            pred_keys.PREDICTIONS]
+      if isinstance(predictions, dict):
+        if output_key and output_key in predictions:
+          observing_dict[output_key] = predictions[output_key]
+        elif pred_keys.LOGITS in predictions:
+          observing_dict[pred_keys.LOGITS] = predictions[pred_keys.LOGITS]
+        elif pred_keys.PREDICTIONS in predictions:
+          observing_dict[pred_keys.PREDICTIONS] = predictions[
+              pred_keys.PREDICTIONS]
+        else:
+          raise ValueError('Output keys are not specified and not inferred.')
       else:
-        raise ValueError('Output keys are not specified and not inferred.')
+        observing_dict['output'] = predictions
 
       result = old_fn(mode, serving_export_outputs, predictions, loss, metrics)
       return result
@@ -238,7 +253,7 @@ class EstimatorMonkeyPatchHelper(object):
       tensor: tf.Tensor):
     """Add input tensor to list of FeatureTensors."""
     feature_tensors_list = feature_tensors.get(fc.name, [])
-    if tensor not in [feature.input_tensor for feature in feature_tensors_list]:
+    if all([tensor not in feature for feature in feature_tensors_list]):
       feature_tensors_list.append(FeatureTensors(tensor))
     feature_tensors[fc.name] = feature_tensors_list
 
@@ -435,3 +450,5 @@ class EstimatorMonkeyPatchHelper(object):
 
     finally:
       self._unpatch_estimator_to_observe()
+    if output_key and output_key not in self.output_tensors_dict:
+      raise ValueError(f'Output key "{output_key}" is not found.')

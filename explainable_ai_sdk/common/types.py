@@ -20,7 +20,7 @@ import numpy as np
 StructType = Dict[str, Any]
 # Values a tensor can contain. Dict[Any] represent struct input type.
 TensorValue = Union[int, float, bool, str, np.ndarray, List["TensorValue"],
-                    StructType]  # pytype: disable=not-supported-yet
+                    StructType, bytes]  # pytype: disable=not-supported-yet
 # A tensor can be a list of values or cast to numpy arrays.
 Tensor = Union[np.ndarray, List[TensorValue]]  # pytype: disable=not-supported-yet
 # Tensors in the explainers library are passed around in a dictionary, where

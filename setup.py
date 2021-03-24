@@ -1,4 +1,4 @@
-# Copyright 2020 Google LLC
+# Copyright 2021 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ __package_name__ = 'explainable_ai_sdk'
 # Get version from version module.
 with open(__package_name__ + '/version.py') as fp:
   globals_dict = {}
-  exec(fp.read(), globals_dict)
+  exec(fp.read(), globals_dict)  
 __version__ = globals_dict['__version__']
 
 # Read the contents of your README file

@@ -15,10 +15,6 @@
 
 """Tests for estimator_metadata_builder."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import json
 import os
 import tensorflow.compat.v1 as tf
@@ -420,6 +416,42 @@ class EstimatorMetadataBuilderTest(tf.test.TestCase):
                                 'A valid estimator needs to be provided'):
       estimator_metadata_builder.EstimatorMetadataBuilder(
           None, [], self._get_json_serving_input_fn, 'logits')
+
+  def test_save_model_with_metadata_baselines(self):
+    columns = [self.age]
+    baselines = {'age': [30]}
+    boosted_tree = tf.estimator.BoostedTreesClassifier(columns, 5)
+    boosted_tree.train(input_fn=self._train_input_fn, steps=5)
+    md_builder = estimator_metadata_builder.EstimatorMetadataBuilder(
+        boosted_tree,
+        columns,
+        self._get_json_serving_input_fn,
+        'logits',
+        baselines=baselines)
+    saved_path = md_builder.save_model_with_metadata(tf.test.get_temp_dir())
+    metadata_file_path = os.path.join(saved_path, b'explanation_metadata.json')
+    self.assertTrue(os.path.isfile(metadata_file_path))
+    with tf.io.gfile.GFile(metadata_file_path, 'r') as f:
+      generated_md = json.load(f)
+    expected_md = {
+        'outputs': {
+            'logits': {
+                'output_tensor_name': 'boosted_trees/BoostedTreesPredict:0'
+            }
+        },
+        'inputs': {
+            'age': {
+                'input_tensor_name':
+                    'boosted_trees/transform_features/age/ExpandDims:0',
+                'encoding':
+                    'identity',
+                'input_baselines': [30]
+            }
+        },
+        'framework': 'Tensorflow',
+        'tags': ['explainable_ai_sdk']
+    }
+    self._assertMetadataEqualsWithPrefix(expected_md, generated_md)
 
 
 if __name__ == '__main__':

@@ -48,8 +48,8 @@ def validate_is_instance(var: Any,
         "XAI Validation :: Metadata: Variable `%s` should be of type `%s`",
         var_name, print_type)
   if not isinstance(var, instance_type):
-    raise TypeError("%s must be of type %s. Got %s" %
-                    (var_name, str(instance_type), str(type(var))))
+    raise TypeError("{} must be of type {}. Got {}".format(
+        var_name, str(instance_type), str(type(var))))
 
 
 def validate_object_init_type_hint(obj: object) -> None:
@@ -107,5 +107,5 @@ def validate_is_in(var: Any,
         "XAI Validation :: Metadata: Variable `%s` should be a member of `%s`",
         var_name, sorted_list_type)
   if var not in list_type:
-    raise ValueError("%s not in %s. Got %s." %
-                     (var_name, sorted_list_type, var))
+    raise ValueError("{} not in {}. Got {}.".format(
+        var_name, sorted_list_type, var))

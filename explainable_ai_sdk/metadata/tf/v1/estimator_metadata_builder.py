@@ -44,11 +44,6 @@ Caveats:
     only when the estimator is being saved.
 """
 
-from __future__ import absolute_import
-from __future__ import division
-
-from __future__ import print_function
-
 from typing import Dict, Text, List, Any, Set, Callable, Optional
 import tensorflow.compat.v1 as tf
 from tensorflow.python.feature_column import feature_column_v2 as fc2  
@@ -67,6 +62,7 @@ class EstimatorMetadataBuilder(metadata_builder.MetadataBuilder):
                feature_columns: List[fc2.FeatureColumn],
                serving_input_fn: Callable[..., Any],
                output_key: Optional[Text] = None,
+               baselines: Optional[Dict[Text, List[Any]]] = None,
                **kwargs):
     """Initialize an EstimatorMetadataBuilder.
 
@@ -80,6 +76,10 @@ class EstimatorMetadataBuilder(metadata_builder.MetadataBuilder):
       output_key: Output key to find the model's relevant output tensors. Some
         valid values are logits, probabilities. If not provided, will default to
         logits and regression outputs.
+      baselines: Baseline values for each input feature. The key name is the
+        feature name, and the value represents the baselines. The value is
+        specified as a list because multiple baselines can be supplied for the
+        features.
       **kwargs: Any keyword arguments to be passed to export_saved_model.
         add_meta_graph() function.
     """
@@ -90,6 +90,7 @@ class EstimatorMetadataBuilder(metadata_builder.MetadataBuilder):
       raise ValueError('feature_columns cannot be empty.')
     self._feature_columns = feature_columns
     self._output_key = output_key
+    self._baselines = baselines
     self._monkey_patcher = monkey_patch_utils.EstimatorMonkeyPatchHelper()
     self._serving_input_fn = serving_input_fn
     self._save_args = kwargs
@@ -159,6 +160,8 @@ class EstimatorMetadataBuilder(metadata_builder.MetadataBuilder):
             input_name = '%s_%s' % (
                 fc_name, input_md['input_tensor_name'].split('/')[0])
           input_md['name'] = input_name
+          if self._baselines:
+            input_md['input_baselines'] = self._baselines.get(input_name, None)
           input_mds.append(explain_metadata.InputMetadata(**input_md))
     return input_mds
 

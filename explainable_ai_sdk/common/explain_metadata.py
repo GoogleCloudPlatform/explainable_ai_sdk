@@ -532,8 +532,8 @@ class InputMetadata(object):
         Encoding.BAG_OF_FEATURES, Encoding.BAG_OF_FEATURES_SPARSE,
         Encoding.INDICATOR}:
       raise ValueError(
-          "index_feature_mapping must be provided when encoding is %s." %
-          self._encoding)
+          "index_feature_mapping must be provided when encoding is {}.".format(
+              self._encoding))
 
   def _validate_tensors(self):
     """Validates tensor related fields in InputExplainMetadata."""
@@ -554,7 +554,8 @@ class InputMetadata(object):
             (not self._weight_indices_name and not self._weight_values_name and
              not self._weight_dense_shape_name)):
       raise ValueError("You must provide all weight tensors (values, indices, "
-                       "dense_shape) or none for the feature %s." % self._name)
+                       "dense_shape) or none for the feature {}.".format(
+                           self._name))
 
   def _validate_baselines(self):
     """Validates input_baselines and encoded_baselines."""
@@ -563,8 +564,8 @@ class InputMetadata(object):
     if (self._encoded_baselines is not None and
         self._input_baselines is not None):
       raise ValueError("Got both encoded_baselines and input_baselines "
-                       "for input_metadata %s. "
-                       "Only one should be present." % self._name)
+                       "for input_metadata {}. "
+                       "Only one should be present.".format(self._name))
     logging.debug(
         "XAI Validation :: Metadata: [InputMetadata] The number of "
         "`encoded_baselines` should be at most %d.",
@@ -572,16 +573,16 @@ class InputMetadata(object):
     if (self._encoded_baselines is not None and
         len(self._encoded_baselines) > constants.MAX_NUM_BASELINES):
       raise ValueError("Got too many encoded baselines. "
-                       "Please limit the number of baselines to %d." %
-                       constants.MAX_NUM_BASELINES)
+                       "Please limit the number of baselines to {:d}.".format(
+                           constants.MAX_NUM_BASELINES))
     logging.debug(
         "XAI Validation :: Metadata: [InputMetadata] The number of "
         "`input_baselines` should be at most %d.", constants.MAX_NUM_BASELINES)
     if (self._input_baselines is not None and
         len(self._input_baselines) > constants.MAX_NUM_BASELINES):
       raise ValueError("Got too many input baselines. "
-                       "Please limit the number of baselines to %d." %
-                       constants.MAX_NUM_BASELINES)
+                       "Please limit the number of baselines to {:d}.".format(
+                           constants.MAX_NUM_BASELINES))
 
   def _validate_domain(self):
     """Validates InputMetadata.DOMAIN config provided by the user."""
@@ -591,7 +592,7 @@ class InputMetadata(object):
         sorted(map(str, set(FeatureDomain.values()))))
     if not set(self._domain.keys()).issubset(set(FeatureDomain.values())):
       raise ValueError(
-          "Invalid key '%s' provided for %s." %
+          "Invalid key '{}' provided for {}.".format
           (set(self._domain.keys()).difference(set(
               FeatureDomain.values())), InputMetadataKeys.DOMAIN))
     self._validate_domain_range()
@@ -610,19 +611,19 @@ class InputMetadata(object):
     if FeatureDomain.MIN in self._domain or FeatureDomain.MAX in self._domain:
       if (FeatureDomain.MAX not in self._domain or
           FeatureDomain.MIN not in self._domain):
-        raise ValueError("Both min and max must be specified; got %s." %
-                         repr(self._domain))
+        raise ValueError("Both min and max must be specified; got {}.".format(
+            repr(self._domain)))
       if (not isinstance(self._domain[FeatureDomain.MIN], (int, float)) or
           not isinstance(self._domain[FeatureDomain.MAX], (int, float))):
-        raise ValueError("Min and max must both be floats. Got %s." %
-                         repr(self._domain))
+        raise ValueError("Min and max must both be floats. Got {}.".format(
+            repr(self._domain)))
       if self._domain[FeatureDomain.MIN] > self._domain[FeatureDomain.MAX]:
         raise ValueError("Feature domain invalid, MAX must be larger than MIN:"
-                         " %s." % repr(self._domain))
+                         " {}.".format(repr(self._domain)))
       if self._encoding != Encoding.IDENTITY:
         raise ValueError("domain range must only be specified for inputs "
                          "with identity encoding (the encoding provided is "
-                         "%s)." % self._encoding)
+                         "{}).".format(self._encoding))
 
   @property
   def name(self):
@@ -822,35 +823,35 @@ class InputMetadata(object):
       A dictionary with tensor name as key and dtype as value.
     """
     tensor_name_to_dtype_mapping = {}
-    if self._input_tensor_name and self._input_tensor_dtype:
-      tensor_name_to_dtype_mapping.update(
-          {self._input_tensor_name: self._input_tensor_dtype})
-    if self._indices_tensor_name and self._indices_tensor_dtype:
-      tensor_name_to_dtype_mapping.update(
-          {self._indices_tensor_name: self._indices_tensor_dtype})
-    if self._encoded_tensor_name and self._encoded_tensor_dtype:
-      tensor_name_to_dtype_mapping.update(
-          {self._encoded_tensor_name: self._encoded_tensor_dtype})
-    if self._indices_tensor_name and self._indices_tensor_dtype:
-      tensor_name_to_dtype_mapping.update(
-          {self._indices_tensor_name: self._indices_tensor_dtype})
-    if self._dense_shape_tensor_name and self._dense_shape_tensor_dtype:
-      tensor_name_to_dtype_mapping.update(
-          {self._dense_shape_tensor_name: self._dense_shape_tensor_dtype})
-    if self._weight_values_name and self._weight_values_dtype:
-      tensor_name_to_dtype_mapping.update(
-          {self._weight_values_name: self._weight_values_dtype})
-    if self._weight_indices_name and self._weight_indices_dtype:
-      tensor_name_to_dtype_mapping.update(
-          {self._weight_indices_name: self._weight_indices_dtype})
-    if self._weight_dense_shape_name and self._weight_dense_shape_dtype:
-      tensor_name_to_dtype_mapping.update(
-          {self._weight_dense_shape_name: self._weight_dense_shape_dtype})
-    if self._gradient_tensor_names and self._gradient_tensor_dtypes:
-      for k in self._gradient_tensor_names.keys():
-        if self._gradient_tensor_names[k] and self._gradient_tensor_dtypes[k]:
-          tensor_name_to_dtype_mapping.update(
-              {self._gradient_tensor_names[k]: self._gradient_tensor_dtypes[k]})
+
+    _update_map_if_not_none(tensor_name_to_dtype_mapping,
+                            self._input_tensor_name, self._input_tensor_dtype)
+    _update_map_if_not_none(tensor_name_to_dtype_mapping,
+                            self._indices_tensor_name,
+                            self._indices_tensor_dtype)
+    _update_map_if_not_none(tensor_name_to_dtype_mapping,
+                            self._encoded_tensor_name,
+                            self._encoded_tensor_dtype)
+    _update_map_if_not_none(tensor_name_to_dtype_mapping,
+                            self._indices_tensor_name,
+                            self._indices_tensor_dtype)
+    _update_map_if_not_none(tensor_name_to_dtype_mapping,
+                            self._dense_shape_tensor_name,
+                            self._dense_shape_tensor_dtype)
+    _update_map_if_not_none(tensor_name_to_dtype_mapping,
+                            self._weight_values_name, self._weight_values_dtype)
+    _update_map_if_not_none(tensor_name_to_dtype_mapping,
+                            self._weight_indices_name,
+                            self._weight_indices_dtype)
+    _update_map_if_not_none(tensor_name_to_dtype_mapping,
+                            self._weight_dense_shape_name,
+                            self._weight_dense_shape_dtype)
+    if (self._gradient_tensor_names is not None and
+        self._gradient_tensor_dtypes is not None):
+      for k in self._gradient_tensor_names:
+        _update_map_if_not_none(tensor_name_to_dtype_mapping,
+                                self._gradient_tensor_names[k],
+                                self._gradient_tensor_dtypes[k])
     return tensor_name_to_dtype_mapping
 
   @property
@@ -920,8 +921,8 @@ class InputMetadata(object):
         InputMetadataKeys.values().union(DeprecatedInputMetadataKeys.values()))
     if keys_delta:
       raise ValueError(
-          "Unexpected input keys %s while parsing explain metadata." %
-          list(keys_delta))
+          "Unexpected input keys {} while parsing explain metadata.".format(
+              list(keys_delta)))
 
     kwargs = {"name": name}
     kwargs.update({
@@ -1103,8 +1104,8 @@ class OutputMetadata(object):
         OutputMetadataKeys.values())
     if keys_delta:
       raise ValueError(
-          "Unexpected output keys %s while parsing explain metadata." %
-          list(keys_delta))
+          "Unexpected output keys {} while parsing explain metadata.".format(
+              list(keys_delta)))
 
     kwargs = {"name": name}
     kwargs.update({
@@ -1219,8 +1220,8 @@ class EmbeddingMetadata(object):
     keys_delta = set(emb_dict.keys()).difference(EmbeddingMetadataKeys.values())
     if keys_delta:
       raise ValueError(
-          "Unexpected embedding keys %s while parsing explain metadata." %
-          list(keys_delta))
+          "Unexpected embedding keys {} while parsing explain metadata.".format(
+              list(keys_delta)))
 
     kwargs = {"name": name}
     kwargs.update({
@@ -1344,9 +1345,8 @@ class SigDefInputMetadata(object):
     keys_delta = set(sigdef_in_dict.keys()).difference(
         SigDefInputMetadataKeys.values())
     if keys_delta:
-      raise ValueError(
-          "Unexpected sigdef_input keys ['%s'] while parsing explain metadata."
-          % ",".join(keys_delta))
+      raise ValueError("Unexpected sigdef_input keys ['{}'] while parsing "
+                       "explain metadata.".format(",".join(keys_delta)))
 
     kwargs = {"name": name}
     kwargs.update({
@@ -1447,7 +1447,8 @@ class ExplainMetadata(object):
     if self.inputs:
       for input_md in self.inputs:
         if input_md.name in inputs_name_mapping:
-          raise ValueError("Duplicate input name '%s' found." % input_md.name)
+          raise ValueError(
+              "Duplicate input name '{}' found.".format(input_md.name))
         inputs_name_mapping[input_md.name] = input_md
     return inputs_name_mapping
 
@@ -1461,7 +1462,8 @@ class ExplainMetadata(object):
     if self.outputs:
       for output_md in self.outputs:
         if output_md.name in outputs_name_mapping:
-          raise ValueError("Duplicate output name '%s' found." % output_md.name)
+          raise ValueError(
+              "Duplicate output name '{}' found.".format(output_md.name))
         outputs_name_mapping[output_md.name] = output_md
     return outputs_name_mapping
 
@@ -1528,8 +1530,8 @@ class ExplainMetadata(object):
   def append_sigdef_input(self, sigdef_input: SigDefInputMetadata):
     """Append SigDefInputMetadata to ExplainMetadata."""
     if not isinstance(sigdef_input, SigDefInputMetadata):
-      raise TypeError("Cannot append sigdef input of type %s." %
-                      type(sigdef_input))
+      raise TypeError("Cannot append sigdef input of type {}.".format(
+          type(sigdef_input)))
     self._sigdef_inputs.append(sigdef_input)
 
   def input_by_name(self, name):
@@ -1609,7 +1611,7 @@ class ExplainMetadata(object):
           name in self.dense_shape_tensor_names):
         raise ValueError(
             "both indices_tensor_name and dense_shape_tensor_name must be "
-            "present/absent for %s." %name)
+            "present/absent for {}.".format(name))
       if name in self.indices_tensor_names:
         sparse_tensors[name] = types.SparseTensorNames(
             self.input_tensor_names[name], self.indices_tensor_names[name],
@@ -1690,7 +1692,7 @@ class ExplainMetadata(object):
         # Raise an exception instead of ignoring this in_md because
         # the caller explicitly asked for the given output_name.
         raise ValueError(
-            'gradient tensor for output "%s" w.r.t. input "%s" not set.' %
+            'gradient tensor for output "{}" w.r.t. input "{}" not set.'.format
             (output_name, in_md.name))
       gradient_tensor_name = in_md.gradient_tensor_names[output_name]
       gradient_tensor_names[gradient_tensor_name] = gradient_tensor_name
@@ -1761,31 +1763,34 @@ class ExplainMetadata(object):
     # even for fixed length (no indices tensor).
     for key in self.encoded_tensor_names:
       input_md = self.input_by_name(key)
-      if not input_md:
-        raise ValueError("Invalid metadata. Input missing for named input %s." %
-                         key)
-      tensor_name = input_md.input_tensor_name
-      input_sparse_tensors[tensor_name] = tensor_name
+      if input_md is None:
+        raise ValueError(
+            "Invalid metadata. Input missing for named input {}.".format(key))
+      _update_map_if_not_none(input_sparse_tensors, input_md.input_tensor_name,
+                              input_md.input_tensor_name)
     input_weight_sparse_tensors = collections.OrderedDict()
     for key in self.indices_tensor_names:
       input_md = self.input_by_name(key)
-      if not input_md:
-        raise ValueError("Invalid metadata. Input missing for named input %s." %
-                         key)
-      tensor_name = input_md.input_tensor_name
-      input_sparse_tensors[tensor_name] = tensor_name
-      tensor_name = input_md.indices_tensor_name
-      input_sparse_tensors[tensor_name] = tensor_name
-      if input_md.dense_shape_tensor_name:
-        tensor_name = input_md.dense_shape_tensor_name
-        input_sparse_tensors[tensor_name] = tensor_name
-      if input_md.weight_values_name:
-        tensor_name = input_md.weight_values_name
-        input_weight_sparse_tensors[tensor_name] = tensor_name
-        tensor_name = input_md.weight_indices_name
-        input_weight_sparse_tensors[tensor_name] = tensor_name
-        tensor_name = input_md.weight_dense_shape_name
-        input_weight_sparse_tensors[tensor_name] = tensor_name
+      if input_md is None:
+        raise ValueError(
+            "Invalid metadata. Input missing for named input {}.".format(key))
+      _update_map_if_not_none(input_sparse_tensors, input_md.input_tensor_name,
+                              input_md.input_tensor_name)
+      _update_map_if_not_none(input_sparse_tensors,
+                              input_md.indices_tensor_name,
+                              input_md.indices_tensor_name)
+      _update_map_if_not_none(input_sparse_tensors,
+                              input_md.dense_shape_tensor_name,
+                              input_md.dense_shape_tensor_name)
+      _update_map_if_not_none(input_weight_sparse_tensors,
+                              input_md.weight_values_name,
+                              input_md.weight_values_name)
+      _update_map_if_not_none(input_weight_sparse_tensors,
+                              input_md.weight_indices_name,
+                              input_md.weight_indices_name)
+      _update_map_if_not_none(input_weight_sparse_tensors,
+                              input_md.weight_dense_shape_name,
+                              input_md.weight_dense_shape_name)
 
     return utils.merge_dict(
         input_dense_tensors,
@@ -2016,8 +2021,9 @@ class ExplainMetadata(object):
         preparer_version = semver.SemanticVersion(v)
       elif k == MetadataKeys.FRAMEWORK:
         if v.lower() not in Framework.values():
-          raise ValueError("Unsupported or misspelled framework: '%s'."
-                           " Supported values: %s." % (v, Framework.values()))
+          raise ValueError("Unsupported or misspelled framework: '{}'."
+                           " Supported values: {}.".format(
+                               v, Framework.values()))
         framework = v.lower()
       elif k == MetadataKeys.SIGDEF_INPUTS:
         # Read sigdef_inputs:
@@ -2030,7 +2036,8 @@ class ExplainMetadata(object):
         serving_sigdef_key = v
       else:
         raise ValueError(
-            "Unexpected top-level key '%s' while parsing explain metadata." % k)
+            "Unexpected top-level key '{}' "
+            "while parsing explain metadata.".format(k))
 
     return cls(
         inputs=inputs,
@@ -2126,6 +2133,12 @@ class ExplainMetadata(object):
       return cls.from_json(f.read())
 
 
+def _update_map_if_not_none(d, key, val):
+  """Updates the given dictionary with (key,val) pair if both are not None."""
+  if key is not None and val is not None:
+    d.update({key: val})
+
+
 def explain_metadata_instance_check(explain_md: ExplainMetadata):
   """Checks if the metadata instance is valid."""
   logging.debug("XAI Validation :: Metadata: [ExplainMetadata instance check] "
@@ -2158,7 +2171,7 @@ def validate_visualization(explain_md: ExplainMetadata):
     if in_md.modality != Modality.IMAGE:
       raise ValueError(
           "Cannot visualize attributions on non-image inputs with "
-          "modailty: %s " % in_md.modality)
+          "modailty: {} ".format(in_md.modality))
     _validate_visualization_key(in_md)
 
     #  Overlay type must be in the predefined set
@@ -2259,5 +2272,5 @@ def validate_integrated_gradients(explain_md: ExplainMetadata):
 def validate_modality(explain_md: ExplainMetadata, expected_modality: str):
   for input_md in explain_md.inputs:
     if input_md.modality != expected_modality:
-      raise ValueError("Input modality must be %s, got %s for input %s." %
-                       (expected_modality, input_md.modality, input_md.name))
+      raise ValueError("Input modality must be {}, got {} for input {}.".format(
+          expected_modality, input_md.modality, input_md.name))

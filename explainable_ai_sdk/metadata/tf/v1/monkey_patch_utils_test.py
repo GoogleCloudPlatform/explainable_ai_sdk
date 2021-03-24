@@ -14,18 +14,15 @@
 
 
 """Tests for monkey_patch_utils."""
-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import os
+from absl.testing import parameterized
 import tensorflow.compat.v1 as tf
 from explainable_ai_sdk.metadata.tf.v1 import monkey_patch_utils
+from tensorflow.python.feature_column import feature_column_v2 as fc2  
 from tensorflow_estimator.python.estimator.canned import prediction_keys
 
 
-class MonkeyPatchUtilsTest(tf.test.TestCase):
+class MonkeyPatchUtilsTest(tf.test.TestCase, parameterized.TestCase):
 
   @classmethod
   def setUpClass(cls):
@@ -128,6 +125,40 @@ class MonkeyPatchUtilsTest(tf.test.TestCase):
         'language_weights': tf.sparse_placeholder(tf.float32)
     }
     return tf.estimator.export.ServingInputReceiver(inputs, inputs)
+
+  @parameterized.parameters(
+      (monkey_patch_utils.FeatureTensors(tf.constant([0])), 'not_a_tensor'),
+      (monkey_patch_utils.FeatureTensors('not_a_tensor'), tf.constant([0])),
+      (monkey_patch_utils.FeatureTensors(tf.constant([0])), tf.constant([0])),
+      (monkey_patch_utils.FeatureTensors(tf.constant([0])),
+       fc2.CategoricalColumn.IdWeightPair(
+           tf.SparseTensor(
+               tf.constant([[0]], dtype=tf.int64),
+               tf.constant([0], dtype=tf.int64),
+               tf.constant([0], dtype=tf.int64)), None)))
+  def test_feature_tensors_contains_not_contain(self, feature_tensors, tensor):
+    self.assertNotIn(tensor, feature_tensors)
+
+  @parameterized.parameters(
+      (monkey_patch_utils.FeatureTensors(tf.constant([0], name='t1')),
+       tf.get_default_graph().get_tensor_by_name('t1:0')),
+      (monkey_patch_utils.FeatureTensors(
+          tf.constant([0], name='t2'), [tf.constant([0], name='e2')]),
+       tf.get_default_graph().get_tensor_by_name('e2:0')),
+      (monkey_patch_utils.FeatureTensors(
+          fc2.CategoricalColumn.IdWeightPair(
+              tf.SparseTensor(
+                  tf.constant([[0]], name='i', dtype=tf.int64),
+                  tf.constant([0], name='v', dtype=tf.int64),
+                  tf.constant([0], name='ds', dtype=tf.int64)), None),
+          [tf.constant([0], name='t1')]),
+       fc2.CategoricalColumn.IdWeightPair(
+           tf.SparseTensor(tf.get_default_graph().get_tensor_by_name('i:0'),
+                           tf.get_default_graph().get_tensor_by_name('v:0'),
+                           tf.get_default_graph().get_tensor_by_name('ds:0')),
+           None)))
+  def test_feature_tensors_contains_tensor(self, feature_tensors, tensor):
+    self.assertIn(tensor, feature_tensors)
 
   def test_exporting_context_dnn_classifier(self):
     patcher = monkey_patch_utils.EstimatorMonkeyPatchHelper()
