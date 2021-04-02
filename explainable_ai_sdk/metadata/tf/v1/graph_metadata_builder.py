@@ -45,7 +45,7 @@ class GraphMetadataBuilder(metadata_builder.MetadataBuilder):
                serving_inputs: Optional[Dict[Text, tf.Tensor]] = None,
                serving_outputs: Optional[Dict[Text, tf.Tensor]] = None,
                tags: Set[Text] = (tf.saved_model.tag_constants.SERVING,),
-               **kwargs):
+               **kwargs):  # pytype: disable=annotation-type-mismatch
     """Initializes a GraphMetadataBuilder object.
 
     Args:

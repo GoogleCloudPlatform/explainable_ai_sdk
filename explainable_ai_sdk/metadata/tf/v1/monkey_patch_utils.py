@@ -92,7 +92,7 @@ class FeatureTensors(object):
   def __init__(
       self,
       input_tensor: Union[tf.Tensor, fc2.CategoricalColumn.IdWeightPair],
-      encoded_tensors: List[tf.Tensor] = ()):
+      encoded_tensors: List[tf.Tensor] = ()):  # pytype: disable=annotation-type-mismatch
     """Initialize a FeatureTensors object.
 
     Args:

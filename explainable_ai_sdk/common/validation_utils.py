@@ -21,7 +21,8 @@ from absl import logging
 def validate_is_instance(var: Any,
                          var_name: str,
                          instance_type: Any,
-                         class_name: str = None) -> None:
+                         class_name: str = None,
+                         log_metadata_validation_failures: bool = True) -> None:
   """Validates the type of the given variable and raises exception if not pass.
 
   Args:
@@ -29,6 +30,8 @@ def validate_is_instance(var: Any,
     var_name: The name of the variable.
     instance_type: The expected variable type.
     class_name: The class that the variable belongs to.
+    log_metadata_validation_failures: Metadata validation failures will be sent
+    to logging.debug() if set to True.
   Raises:
     ValueError: If the given variable is not of expected type.
   """
@@ -39,25 +42,29 @@ def validate_is_instance(var: Any,
     print_type = splits[1]
   else:
     print_type = splits[0]
-  if class_name is not None:
-    logging.debug(
-        "XAI Validation :: Metadata: [%s] Variable `%s` should be of type `%s`",
-        class_name, var_name, print_type)
-  else:
-    logging.debug(
-        "XAI Validation :: Metadata: Variable `%s` should be of type `%s`",
-        var_name, print_type)
+  if log_metadata_validation_failures:
+    if class_name is None:
+      logging.debug(
+          "XAI Validation :: Metadata: Variable `%s` should be of type `%s`",
+          var_name, print_type)
+    else:
+      logging.debug(
+          "XAI Validation :: Metadata: [%s] Variable `%s` should be of type "
+          "`%s`", class_name, var_name, print_type)
   if not isinstance(var, instance_type):
     raise TypeError("{} must be of type {}. Got {}".format(
         var_name, str(instance_type), str(type(var))))
 
 
-def validate_object_init_type_hint(obj: object) -> None:
-  """Check if the variables of the given object matched the type hints of init.
+def validate_object_init_type_hint(obj: object,
+                                   log_metadata_validation_failures: bool = True
+                                  ) -> None:
+  """Checks if the variables of the given object matched the type hints of init.
 
   Args:
     obj: The object to verify.
-
+    log_metadata_validation_failures: Metadata validation failures will be sent
+    to logging.debug() if set to True.
   Raises:
     ValueError: If any of the given variable does not match type hint of init.
   """
@@ -76,14 +83,17 @@ def validate_object_init_type_hint(obj: object) -> None:
           instance_type = generic_alias_map[instance_type.__origin__]
       else:
         instance_type = generic_alias_map[instance_type.__origin__]
-    var = getattr(obj, var_name)
-    validate_is_instance(var, var_name, instance_type, type(obj).__name__)
+    if hasattr(obj, var_name):
+      var = getattr(obj, var_name)
+      validate_is_instance(var, var_name, instance_type,
+                           type(obj).__name__, log_metadata_validation_failures)
 
 
 def validate_is_in(var: Any,
                    var_name: str,
                    list_type: Any,
-                   class_name: str = None) -> None:
+                   class_name: str = None,
+                   log_metadata_validation_failures: bool = True) -> None:
   """Validates if the given variable is a member of the given list-type object.
 
   Args:
@@ -91,6 +101,8 @@ def validate_is_in(var: Any,
     var_name: The name of the variable.
     list_type: The given list-type object.
     class_name: The class that the variable belongs to.
+    log_metadata_validation_failures: Metadata validation failures will be sent
+    to logging.debug() if set to True.
 
   Raises:
     ValueError: If the given variable is not a member of the list-type object.
@@ -98,14 +110,15 @@ def validate_is_in(var: Any,
   if var is None:
     return
   sorted_list_type = sorted(map(str, list_type))
-  if class_name is not None:
-    logging.debug(
-        "XAI Validation :: Metadata: [%s] Variable `%s` should be a member "
-        "of `%s`", class_name, var_name, sorted_list_type)
-  else:
-    logging.debug(
-        "XAI Validation :: Metadata: Variable `%s` should be a member of `%s`",
-        var_name, sorted_list_type)
+  if log_metadata_validation_failures:
+    if class_name is None:
+      logging.debug(
+          "XAI Validation :: Metadata: Variable `%s` should be a member of "
+          "`%s`", var_name, sorted_list_type)
+    else:
+      logging.debug(
+          "XAI Validation :: Metadata: [%s] Variable `%s` should be a member "
+          "of `%s`", class_name, var_name, sorted_list_type)
   if var not in list_type:
     raise ValueError("{} not in {}. Got {}.".format(
         var_name, sorted_list_type, var))

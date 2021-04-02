@@ -453,6 +453,151 @@ class EstimatorMetadataBuilderTest(tf.test.TestCase):
     }
     self._assertMetadataEqualsWithPrefix(expected_md, generated_md)
 
+  def test_save_model_with_metadata_drops_duplicates(self):
+    dnn_columns = [self.age, self.class_id_indicator]
+    wide_columns = [self.age, self.class_identity]
+    wide_deep_classifier = tf.estimator.DNNLinearCombinedClassifier(
+        linear_feature_columns=wide_columns,
+        dnn_feature_columns=dnn_columns,
+        dnn_hidden_units=[4, 2])
+    wide_deep_classifier.train(input_fn=self._train_input_fn, steps=5)
+
+    md_builder = estimator_metadata_builder.EstimatorMetadataBuilder(
+        wide_deep_classifier, wide_columns,
+        self._get_weighted_json_serving_input_fn, 'logits')
+    saved_path = md_builder.save_model_with_metadata(
+        tf.test.get_temp_dir(), drop_duplicate_features=True)
+    metadata_file_path = os.path.join(saved_path, b'explanation_metadata.json')
+    self.assertTrue(os.path.isfile(metadata_file_path))
+    with tf.io.gfile.GFile(metadata_file_path, 'r') as f:
+      generated_md = json.load(f)
+    # Note that age and class_identity are single feature inputs
+    # here in the metadata, unlike in the test
+    # 'test_save_model_with_metadata_multiple_tensor_groups' where we don't
+    # drop duplicate inputs for the feature columns 'age' and 'class_identity'.
+    # Specifically, we have 'age' and 'class_identity' singular entries here
+    # below, instead of 'age_dnn', 'age_linear', 'class_identity_dnn' and
+    # 'class_identity_linear' when the parameter drop_duplicate_features is set
+    # to False.
+    expected_md = {
+        'outputs': {
+            'logits': {
+                'output_tensor_name': 'add:0'
+            }
+        },
+        'inputs': {
+            'age': {
+                'input_tensor_name':
+                    'dnn/input_from_feature_columns/input_layer/age/'
+                    'ExpandDims:0',
+                'encoding': 'identity'
+            },
+            'class_identity': {
+                'input_tensor_name':
+                    'dnn/input_from_feature_columns/input_layer/class_identity_'
+                    'indicator/',
+                'encoding': 'combined_embedding',
+                'indices_tensor_name':
+                    'dnn/input_from_feature_columns/input_layer/class_identity_'
+                    'indicator/to_sparse_input/',
+                'dense_shape_tensor_name':
+                    'dnn/input_from_feature_columns/input_layer/class_identity_'
+                    'indicator/to_sparse_input/',
+                'encoded_tensor_name':
+                    'dnn/input_from_feature_columns/input_layer/class_identity_'
+                    'indicator/'
+            }
+        },
+        'framework': 'Tensorflow',
+        'tags': ['explainable_ai_sdk']
+    }
+    self._assertMetadataEqualsWithPrefix(expected_md, generated_md)
+
+  def test_save_model_with_metadata_groups_duplicates(self):
+    dnn_columns = [self.age, self.class_id_indicator]
+    wide_columns = [self.age, self.class_identity]
+    wide_deep_classifier = tf.estimator.DNNLinearCombinedClassifier(
+        linear_feature_columns=wide_columns,
+        dnn_feature_columns=dnn_columns,
+        dnn_hidden_units=[4, 2])
+    wide_deep_classifier.train(input_fn=self._train_input_fn, steps=5)
+
+    md_builder = estimator_metadata_builder.EstimatorMetadataBuilder(
+        wide_deep_classifier, wide_columns,
+        self._get_weighted_json_serving_input_fn, 'logits')
+    saved_path = md_builder.save_model_with_metadata(
+        tf.test.get_temp_dir(), group_duplicate_features=True)
+    metadata_file_path = os.path.join(saved_path, b'explanation_metadata.json')
+    self.assertTrue(os.path.isfile(metadata_file_path))
+    with tf.io.gfile.GFile(metadata_file_path, 'r') as f:
+      generated_md = json.load(f)
+    # Note that age and class_identity are single feature inputs
+    # here in the metadata, unlike in the test
+    # 'test_save_model_with_metadata_multiple_tensor_groups' where we don't
+    # drop duplicate inputs for the feature columns 'age' and 'class_identity'.
+    # Specifically, we have 'age' and 'class_identity' singular entries here
+    # below, instead of 'age_dnn', 'age_linear', 'class_identity_dnn' and
+    # 'class_identity_linear' when the parameter drop_duplicate_features is set
+    # to False.
+    expected_md = {
+        'outputs': {
+            'logits': {
+                'output_tensor_name': 'add:0'
+            }
+        },
+        'inputs': {
+            'age_dnn': {
+                'input_tensor_name':
+                    'dnn/input_from_feature_columns/input_layer/age/'
+                    'ExpandDims:0',
+                'encoding': 'identity',
+                'group_name': 'age'
+            },
+            'age_linear': {
+                'input_tensor_name':
+                    'linear/linear_model/linear_model/linear_model/age/'
+                    'ExpandDims:0',
+                'encoding': 'identity',
+                'group_name': 'age'
+            },
+            'class_identity_dnn': {
+                'input_tensor_name':
+                    'dnn/input_from_feature_columns/input_layer/class_identity_'
+                    'indicator/',
+                'encoding': 'combined_embedding',
+                'indices_tensor_name':
+                    'dnn/input_from_feature_columns/input_layer/class_identity_'
+                    'indicator/to_sparse_input/',
+                'dense_shape_tensor_name':
+                    'dnn/input_from_feature_columns/input_layer/class_identity_'
+                    'indicator/to_sparse_input/',
+                'encoded_tensor_name':
+                    'dnn/input_from_feature_columns/input_layer/class_identity_'
+                    'indicator/',
+                'group_name': 'class_identity'
+            },
+            'class_identity_linear': {
+                'input_tensor_name':
+                    'linear/linear_model/linear_model/linear_model/class_'
+                    'identity/',
+                'encoding': 'combined_embedding',
+                'indices_tensor_name':
+                    'linear/linear_model/linear_model/linear_model/class_'
+                    'identity/to_sparse_input/',
+                'dense_shape_tensor_name':
+                    'linear/linear_model/linear_model/linear_model/class_'
+                    'identity/to_sparse_input/',
+                'encoded_tensor_name':
+                    'linear/linear_model/linear_model/linear_model/class_'
+                    'identity/weighted_sum/',
+                'group_name': 'class_identity'
+            }
+        },
+        'framework': 'Tensorflow',
+        'tags': ['explainable_ai_sdk']
+    }
+    self._assertMetadataEqualsWithPrefix(expected_md, generated_md)
+
 
 if __name__ == '__main__':
   tf.test.main()

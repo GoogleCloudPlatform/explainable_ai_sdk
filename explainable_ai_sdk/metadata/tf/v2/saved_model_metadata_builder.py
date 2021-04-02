@@ -45,7 +45,7 @@ class SavedModelMetadataBuilder(metadata_builder.MetadataBuilder):
       model_path: str,
       signature_name: str = tf.saved_model.DEFAULT_SERVING_SIGNATURE_DEF_KEY,
       outputs_to_explain: Optional[List[str]] = (),
-      **kwargs) -> None:
+      **kwargs) -> None:  # pytype: disable=annotation-type-mismatch
     """Initializes a SavedModelMetadataBuilder object.
 
     Args:

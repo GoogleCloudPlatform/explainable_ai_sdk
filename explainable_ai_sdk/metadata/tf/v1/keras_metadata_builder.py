@@ -57,7 +57,7 @@ class KerasGraphMetadataBuilder(graph_metadata_builder.GraphMetadataBuilder):
                serving_outputs: Optional[Dict[Text, tf.Tensor]] = None,
                tags: Set[Text] = (tf.saved_model.tag_constants.SERVING,),
                auto_infer: bool = True,
-               **kwargs):
+               **kwargs):  # pytype: disable=annotation-type-mismatch
     """Initializes a KerasGraphMetadataBuilder object.
 
     Args:
