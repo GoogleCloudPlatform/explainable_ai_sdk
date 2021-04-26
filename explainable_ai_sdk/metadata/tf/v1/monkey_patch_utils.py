@@ -57,12 +57,6 @@ Number of FeatureTensors object for each base column will be one most of the
 time. In the rare case of wide deep classifier, there will be two sets of input
 and encoded tensors, which leads to a list of FeatureTensors object.
 """
-
-from __future__ import absolute_import
-from __future__ import division
-
-from __future__ import print_function
-
 import contextlib
 from typing import Any, Callable, Dict, Text, List, Set, Union, Optional
 from six.moves import zip
@@ -79,10 +73,13 @@ _FEATURE_COLUMNS_TO_PATCH_DENSE = [
 ]
 
 _FEATURE_COLUMNS_TO_PATCH_SPARSE = [
-    fc2.VocabularyListCategoricalColumn, fc2.VocabularyFileCategoricalColumn,
-    fc2.IdentityCategoricalColumn, fc2.HashedCategoricalColumn,
     fc2.CrossedColumn, fc2.BucketizedColumn,  # Bucketized is dense and sparse.
     fc2.WeightedCategoricalColumn
+]
+
+_FEATURE_COLUMNS_TO_PATCH_TRANSFORM = [
+    fc2.VocabularyListCategoricalColumn, fc2.VocabularyFileCategoricalColumn,
+    fc2.IdentityCategoricalColumn, fc2.HashedCategoricalColumn,
 ]
 
 
@@ -106,6 +103,11 @@ class FeatureTensors(object):
   def input_tensor(self):
     return self._input_tensor
 
+  @input_tensor.setter
+  def input_tensor(
+      self, tensor: Union[tf.Tensor, fc2.CategoricalColumn.IdWeightPair]):
+    self._input_tensor = tensor
+
   @property
   def encoded_tensors(self):
     return self._encoded_tensors
@@ -121,7 +123,7 @@ class FeatureTensors(object):
       if not isinstance(self._input_tensor, fc2.CategoricalColumn.IdWeightPair):
         return False
       # Check equivalence of any tensor of the sparse tensor tuple.
-      return tensor.id_tensor.values == self._input_tensor.id_tensor.values
+      return tensor.id_tensor.indices == self._input_tensor.id_tensor.indices
     return False
 
 
@@ -250,9 +252,19 @@ class EstimatorMonkeyPatchHelper(object):
       self,
       feature_tensors: Dict[Text, List[FeatureTensors]],
       fc: fc2.FeatureColumn,
-      tensor: tf.Tensor):
+      tensor: Union[tf.Tensor, fc2.CategoricalColumn.IdWeightPair]):
     """Add input tensor to list of FeatureTensors."""
     feature_tensors_list = feature_tensors.get(fc.name, [])
+    for feature in feature_tensors_list:
+      if tensor in feature:
+        if (isinstance(tensor, fc2.CategoricalColumn.IdWeightPair) and
+            tensor.weight_tensor):
+          # Set the weight tensor of the feature tensor.
+          feature.input_tensor = fc2.CategoricalColumn.IdWeightPair(
+              feature.input_tensor.id_tensor, tensor.weight_tensor)
+        break
+    else:
+      feature_tensors_list.append(FeatureTensors(tensor))
     if all([tensor not in feature for feature in feature_tensors_list]):
       feature_tensors_list.append(FeatureTensors(tensor))
     feature_tensors[fc.name] = feature_tensors_list
@@ -298,6 +310,34 @@ class EstimatorMonkeyPatchHelper(object):
       return result
 
     return _observing_get_sparse_tensors
+
+  def _make_observing_transform_input_tensor(
+      self, old_fn: Callable[..., Any],
+      feature_tensors: Dict[Text, List[FeatureTensors]]
+  ) -> Callable[..., Any]:
+    """Returns a function that wraps _transform_input_tensor to observe inputs.
+
+    The returned function can be used to replace _transform_input_tensor
+    function of some categorical columns to observe untransformed input tensors.
+
+    Args:
+      old_fn: The old call function.
+      feature_tensors: Dictionary to write observed sparse tensors.
+
+    Returns:
+      A function that wraps old_fn and observes arguments, that can be used
+      to replace <feature column>._transform_input_tensor().
+    """
+
+    def _observing__transform_input_tensor(instance, input_tensor, *args,
+                                           **kwargs):
+      """Wrapper around _transform_input_tensor that observes arguments."""
+      self._add_input_tensor_to_dict(
+          feature_tensors, instance,
+          fc2.CategoricalColumn.IdWeightPair(input_tensor, None))
+      return old_fn(instance, input_tensor, *args, **kwargs)
+
+    return _observing__transform_input_tensor
 
   def _make_observing_create_weighted_sum(
       self, old_fn: Callable[..., Any],
@@ -388,11 +428,18 @@ class EstimatorMonkeyPatchHelper(object):
         feature_tensors=self._feature_tensors_dict,
         crossed_columns=self._crossed_columns)
 
-    # Patch get_sparse_tensors() for all categorical feature columns.
+    # Patch get_sparse_tensors() for some categorical feature columns.
     self._actual_get_sparse_tensors_list = self._patch_entities(
         _FEATURE_COLUMNS_TO_PATCH_SPARSE,
         'get_sparse_tensors',
         self._make_observing_get_sparse_tensors,
+        feature_tensors=self._feature_tensors_dict)
+
+    # Patch _transform_input_tensor() for some categorical feature columns.
+    self._actual__transform_input_tensor_list = self._patch_entities(
+        _FEATURE_COLUMNS_TO_PATCH_TRANSFORM,
+        '_transform_input_tensor',
+        self._make_observing_transform_input_tensor,
         feature_tensors=self._feature_tensors_dict)
 
     # Patch _create_weighted_sum() to get dense versions for linear models.
@@ -425,6 +472,9 @@ class EstimatorMonkeyPatchHelper(object):
     self._unpatch_entities(_FEATURE_COLUMNS_TO_PATCH_SPARSE,
                            'get_sparse_tensors',
                            self._actual_get_sparse_tensors_list)
+    self._unpatch_entities(_FEATURE_COLUMNS_TO_PATCH_TRANSFORM,
+                           '_transform_input_tensor',
+                           self._actual__transform_input_tensor_list)
     self._unpatch_entities([fc2], '_create_weighted_sum',
                            [self._actual_create_weighted_sum])
     self._unpatch_entities([export_lib], 'export_outputs_for_mode',

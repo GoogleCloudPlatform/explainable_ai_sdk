@@ -149,7 +149,7 @@ class EstimatorMetadataBuilderTest(tf.test.TestCase):
             'language': {
                 'input_tensor_name':
                     'linear/linear_model/linear_model/linear_model/class_'
-                    'identity_X_language/hash_table_Lookup',
+                    'identity_X_language/to_sparse_input',
                 'encoding': 'identity',
                 'indices_tensor_name':
                     'linear/linear_model/linear_model/linear_model/class_'
@@ -161,7 +161,7 @@ class EstimatorMetadataBuilderTest(tf.test.TestCase):
             'class_identity': {
                 'input_tensor_name':
                     'linear/linear_model/linear_model/linear_model/class_'
-                    'identity_X_language',
+                    'identity_X_language/to_sparse_input_1',
                 'encoding': 'identity',
                 'indices_tensor_name':
                     'linear/linear_model/linear_model/linear_model/class_'
@@ -206,12 +206,12 @@ class EstimatorMetadataBuilderTest(tf.test.TestCase):
             'language': {
                 'input_tensor_name':
                     'dnn/input_from_feature_columns/input_layer/language_'
-                    'embedding/hash_table_Lookup/',
+                    'embedding/to_sparse_input',
                 'encoding':
                     'identity',
                 'indices_tensor_name':
                     'dnn/input_from_feature_columns/input_layer/language_'
-                    'embedding/to_sparse_input/',
+                    'embedding/to_sparse_input',
                 'dense_shape_tensor_name':
                     'dnn/input_from_feature_columns/input_layer/language_'
                     'embedding/to_sparse_input'
@@ -253,7 +253,7 @@ class EstimatorMetadataBuilderTest(tf.test.TestCase):
             'language': {
                 'input_tensor_name':
                     'linear/linear_model/linear_model/linear_model/language_'
-                    'weighted_by_language_weights/hash_table_Lookup/',
+                    'weighted_by_language_weights/to_sparse_input',
                 'encoding':
                     'combined_embedding',
                 'indices_tensor_name':

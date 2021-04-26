@@ -2132,6 +2132,33 @@ class ExplainMetadata(object):
     with tf.io.gfile.GFile(filename, "r") as f:
       return cls.from_json(f.read())
 
+  def convert_to_custom_container_metadata(self) -> "ExplainMetadata":
+    """Converts this metadata to one for use over custom container interface."""
+    inputs = {}
+    outputs = {o.name: {} for o in self.outputs}
+    for i in self.inputs:
+      if i.group_name:
+        # Groups of features indicate ensemble model.
+        # E.g. DNN and linear model would each have a copy
+        # of an input feature with "_dnn" or "_linear" appended
+        # to each respectively. For the custom container, we only
+        # need to grouped feature name (not the component features of the
+        # ensembled models).
+        inputs[i.group_name] = {
+            InputMetadataKeys.ENCODING: i.encoding,
+            InputMetadataKeys.MODALITY: i.modality
+        }
+      else:
+        inputs[i.name] = {
+            InputMetadataKeys.ENCODING: i.encoding,
+            InputMetadataKeys.MODALITY: i.modality
+        }
+    return ExplainMetadata.from_dict({
+        MetadataKeys.OUTPUTS: outputs,
+        MetadataKeys.INPUTS: inputs,
+        MetadataKeys.FRAMEWORK: Framework.CUSTOM_CONTAINER
+    })
+
 
 def _update_map_if_not_none(d, key, val):
   """Updates the given dictionary with (key,val) pair if both are not None."""
