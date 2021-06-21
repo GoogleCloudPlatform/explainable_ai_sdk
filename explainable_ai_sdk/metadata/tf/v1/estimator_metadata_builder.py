@@ -43,8 +43,11 @@ Caveats:
   - There is no get_metadata() function because these tensors can be observed
     only when the estimator is being saved.
 """
+import enum
+import shutil
+import tempfile
+from typing import Dict, Text, List, Any, Set, Callable, Optional, Union
 
-from typing import Dict, Text, List, Any, Set, Callable, Optional
 import tensorflow.compat.v1 as tf
 from tensorflow.python.feature_column import feature_column_v2 as fc2  
 from explainable_ai_sdk.common import explain_metadata
@@ -52,6 +55,14 @@ from explainable_ai_sdk.metadata import constants
 from explainable_ai_sdk.metadata import metadata_builder
 from explainable_ai_sdk.metadata import utils
 from explainable_ai_sdk.metadata.tf.v1 import monkey_patch_utils
+
+
+@enum.unique
+class DuplicateAction(enum.Enum):
+  """Enum for action to take in case of duplicate inputs."""
+  NOTHING = enum.auto()
+  DROP = enum.auto()
+  GROUP = enum.auto()
 
 
 class EstimatorMetadataBuilder(metadata_builder.MetadataBuilder):
@@ -63,6 +74,9 @@ class EstimatorMetadataBuilder(metadata_builder.MetadataBuilder):
                serving_input_fn: Callable[..., Any],
                output_key: Optional[Text] = None,
                baselines: Optional[Dict[Text, List[Any]]] = None,
+               input_mds: Optional[List[explain_metadata.InputMetadata]] = None,
+               duplicate_feature_treatment: Union[
+                   str, DuplicateAction] = DuplicateAction.NOTHING,
                **kwargs):
     """Initialize an EstimatorMetadataBuilder.
 
@@ -80,6 +94,14 @@ class EstimatorMetadataBuilder(metadata_builder.MetadataBuilder):
         feature name, and the value represents the baselines. The value is
         specified as a list because multiple baselines can be supplied for the
         features.
+      input_mds: Additional inputs to the Metadata. If this provided, it will
+        be added in addition to inputs from feature_columns.
+      duplicate_feature_treatment: Treatment for duplicate inputs for the same
+        feature column. Either provide a DuplicateAction enum or a string where
+        the possible values are {'nothing', 'drop', 'group'}. If set
+        to 'nothing', all are included with unique suffix added to input names
+        to disambiguate. If set to 'drop', only one of the inputs will be
+        retained. If set to 'group', all inputs will be grouped.
       **kwargs: Any keyword arguments to be passed to export_saved_model.
         add_meta_graph() function.
     """
@@ -88,12 +110,21 @@ class EstimatorMetadataBuilder(metadata_builder.MetadataBuilder):
     self._estimator = estimator
     if not feature_columns:
       raise ValueError('feature_columns cannot be empty.')
+    if isinstance(duplicate_feature_treatment, str):
+      if duplicate_feature_treatment.upper() not in [a.name
+                                                     for a in DuplicateAction]:
+        raise ValueError('Unrecognized treatment option for duplicates:'
+                         f'{duplicate_feature_treatment}.')
+      duplicate_feature_treatment = DuplicateAction[
+          duplicate_feature_treatment.upper()]
     self._feature_columns = feature_columns
+    self._input_mds = input_mds
     self._output_key = output_key
     self._baselines = baselines
-    self._monkey_patcher = monkey_patch_utils.EstimatorMonkeyPatchHelper()
     self._serving_input_fn = serving_input_fn
+    self._duplicate_action = duplicate_feature_treatment
     self._save_args = kwargs
+    self._metadata = None
 
   def _get_input_tensor_names_for_metadata(
       self,
@@ -129,9 +160,7 @@ class EstimatorMetadataBuilder(metadata_builder.MetadataBuilder):
       self,
       features_dict: Dict[Text, List[monkey_patch_utils.FeatureTensors]],
       crossed_columns: Set[Text],
-      desired_columns: List[Text],
-      drop_duplicate_features: bool = False,
-      group_duplicate_features: bool = False):
+      desired_columns: List[Text]):
     """Creates and returns a list of InputMetadata.
 
     Args:
@@ -139,20 +168,16 @@ class EstimatorMetadataBuilder(metadata_builder.MetadataBuilder):
       crossed_columns: A set of crossed column names.
       desired_columns: A list of feature column names. Only the columns in
         this list will be added to input metadata.
-      drop_duplicate_features: If there are multiple inputs for the same
-        feature column, then we will drop all but one if drop_duplicate_features
-        is True. If False, we will include them all with unique suffix added
-        to the input names to disambiguate.
-      group_duplicate_features: If there are multiple inputs for the same
-        feature column, then we will group them all as one feature group
-        if this parameter is set to True.
 
     Returns:
       A list of InputMetadata.
     """
     input_mds = []
+    if self._input_mds is not None:
+      input_mds = self._input_mds
+    input_names_processed = set([i.name for i in input_mds])
     for fc_name, tensor_groups in features_dict.items():
-      if fc_name in desired_columns:
+      if fc_name in desired_columns and fc_name not in input_names_processed:
         for tensor_group in tensor_groups:
           input_md = self._get_input_tensor_names_for_metadata(tensor_group)
           if fc_name not in crossed_columns:
@@ -161,7 +186,8 @@ class EstimatorMetadataBuilder(metadata_builder.MetadataBuilder):
           input_md['name'] = fc_name
           if self._baselines:
             input_md['input_baselines'] = self._baselines.get(fc_name, None)
-          if len(tensor_groups) == 1 or drop_duplicate_features:
+          if (len(tensor_groups) == 1 or
+              self._duplicate_action == DuplicateAction.DROP):
             input_mds.append(explain_metadata.InputMetadata(**input_md))
             break  # Skip other tensor_groups.
           # There are multiple inputs for the same feature column.
@@ -170,7 +196,7 @@ class EstimatorMetadataBuilder(metadata_builder.MetadataBuilder):
           input_tensor_name = str(input_md['input_tensor_name'])
           suffix = input_tensor_name.split('/')[0]
           input_md['name'] = '%s_%s' % (fc_name, suffix)
-          if group_duplicate_features:
+          if self._duplicate_action == DuplicateAction.GROUP:
             input_md['group_name'] = fc_name
           input_mds.append(explain_metadata.InputMetadata(**input_md))
     return input_mds
@@ -187,14 +213,12 @@ class EstimatorMetadataBuilder(metadata_builder.MetadataBuilder):
     return [explain_metadata.OutputMetadata(name, tensor.name)
             for name, tensor in output_dict.items()]
 
-  def _create_metadata_dict(
+  def _create_metadata_from_tensors(
       self,
       features_dict: Dict[Text, List[monkey_patch_utils.FeatureTensors]],
       crossed_columns: Set[Text],
       desired_columns: List[Text],
-      output_dict: Dict[Text, tf.Tensor],
-      drop_duplicate_features: bool = False,
-      group_duplicate_features: bool = False) -> Dict[Text, Any]:
+      output_dict: Dict[Text, tf.Tensor]) -> Dict[Text, Any]:
     """Creates metadata from given tensor information.
 
     Args:
@@ -203,13 +227,6 @@ class EstimatorMetadataBuilder(metadata_builder.MetadataBuilder):
       desired_columns: A list of feature column names. Only the columns in
         this list will be added to input metadata.
       output_dict: Dictionary from tf.feature_columns to list of dense tensors.
-      drop_duplicate_features: If there are multiple inputs for the same
-        feature column, then we will drop all but one if drop_duplicate_features
-        is True. If False, we will include them all with unique suffix added
-        to the input names to disambiguate.
-      group_duplicate_features: If there are multiple inputs for the same
-        feature column, then we will group them all as one feature group
-        if this parameter is set to True.
 
     Returns:
       A dictionary that abides to explanation metadata.
@@ -218,43 +235,50 @@ class EstimatorMetadataBuilder(metadata_builder.MetadataBuilder):
         inputs=self._create_input_metadata(
             features_dict,
             crossed_columns,
-            desired_columns,
-            drop_duplicate_features=drop_duplicate_features,
-            group_duplicate_features=group_duplicate_features),
+            desired_columns),
         outputs=self._create_output_metadata(output_dict),
         framework='Tensorflow',
         tags=[constants.METADATA_TAG]).to_dict()
 
-  def save_model_with_metadata(self,
-                               file_path: Text,
-                               drop_duplicate_features: bool = False,
-                               group_duplicate_features: bool = False):
+  def save_model_with_metadata(self, file_path: str) -> str:
     """Saves the model and the generated metadata to the given file path.
+
+    New metadata will not be generated for each call to this function since an
+    Estimator is static. Calling this function with different paths will save
+    the model and the same metadata to all paths.
 
     Args:
       file_path: Path to save the model and the metadata. It can be a GCS bucket
         or a local folder. The folder needs to be empty.
-      drop_duplicate_features: If there are multiple inputs for the same
-        feature column, then we will drop all but one if drop_duplicate_features
-        is True. If False, we will include them all with unique suffix added
-        to the input names to disambiguate.
-      group_duplicate_features: If there are multiple inputs for the same
-        feature column, then we will group them all as one feature group
-        if this parameter is set to True.
 
     Returns:
       Full file path where the model and the metadata are written.
     """
-    with self._monkey_patcher.exporting_context(self._output_key):
+    monkey_patcher = monkey_patch_utils.EstimatorMonkeyPatchHelper()
+    with monkey_patcher.exporting_context(self._output_key):
       model_path = self._estimator.export_saved_model(
           file_path, self._serving_input_fn, **self._save_args)
 
-    metadata = self._create_metadata_dict(
-        self._monkey_patcher.feature_tensors_dict,
-        self._monkey_patcher.crossed_columns,
-        [fc.name for fc in self._feature_columns],
-        self._monkey_patcher.output_tensors_dict,
-        drop_duplicate_features=drop_duplicate_features,
-        group_duplicate_features=group_duplicate_features)
-    utils.write_metadata_to_file(metadata, model_path)
+    if not self._metadata:
+      self._metadata = self._create_metadata_from_tensors(
+          monkey_patcher.feature_tensors_dict,
+          monkey_patcher.crossed_columns,
+          [fc.name for fc in self._feature_columns],
+          monkey_patcher.output_tensors_dict)
+    utils.write_metadata_to_file(self._metadata, model_path)
     return model_path
+
+  def get_metadata(self) -> Dict[str, Any]:
+    """Returns the current metadata as a dictionary.
+
+    Since metadata creation is somewhat costly. The one already created is
+    returned as a dictionary. If it hasn't been created, the model is saved to a
+    temporary folder as the metadata tensors are created during model save. That
+    temporary folder is deleted afterwards.
+    """
+    if self._metadata:
+      return self._metadata
+    temp_location = tempfile.gettempdir()
+    model_path = self.save_model_with_metadata(temp_location)
+    shutil.rmtree(model_path)
+    return self._metadata

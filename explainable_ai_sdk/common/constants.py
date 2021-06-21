@@ -61,6 +61,8 @@ XSERVER_PROFILING = "runtime_profiling"
 ATTRIBUTION_BY_LABEL = "attributions_by_label"
 SIMILARITY = "similarity"
 EMBEDDINGS = "embeddings"
+NEAREST_NEIGHBOR_IDS = "neighbor_ids"
+NEAREST_NEIGHBOR_DISTANCES = "neighbor_distances"
 
 # Debugging related strings for explain() call
 STATS_LOGGING = "xai_stats_logging"  # used as key in debug_info

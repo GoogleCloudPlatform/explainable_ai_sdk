@@ -28,8 +28,8 @@ from explainable_ai_sdk.model import model
 
 _CAIP_ATTRIBUTIONS_KEY = 'attributions_by_label'
 _CAIP_FEATURE_ATTRS_KEY = 'attributions_by_label'
-_UCAIP_ATTRIBUTIONS_KEY = 'attributions'
-_UCAIP_FEATURE_ATTRS_KEY = 'featureAttributions'
+_VERTEX_ATTRIBUTIONS_KEY = 'attributions'
+_VERTEX_FEATURE_ATTRS_KEY = 'featureAttributions'
 
 
 class AIPlatformModel(model.Model):
@@ -43,7 +43,7 @@ class AIPlatformModel(model.Model):
     """Constructs a model backed by an endpoint on AI Platform.
 
     Args:
-      model_endpoint_uri: Full (Unified) AI Platform model path (i.e.,
+      model_endpoint_uri: Full (Vertex) AI Platform model path (i.e.,
         <region>-prediction-aiplatform.googleapis.com/projects/<project_name>/
         models/<model_name>/versions/<version_name>)
       credentials: The OAuth2.0 credentials to use for GCP services.
@@ -78,7 +78,7 @@ class AIPlatformModel(model.Model):
 
   def explain(self,
               instances: List[Any],
-              params: configs.AttributionParameters = None,
+              params: Optional[configs.AttributionParameters] = None,
               timeout_ms: int = constants.DEFAULT_TIMEOUT
              ) -> List[explanation.Explanation]:
     """A method to call explanation services with given instances.
@@ -122,10 +122,10 @@ class AIPlatformModel(model.Model):
         attrs_key = _CAIP_ATTRIBUTIONS_KEY
         feature_attrs_key = _CAIP_FEATURE_ATTRS_KEY
         parse_fun = explanation.Explanation.from_ai_platform_response
-      elif _UCAIP_ATTRIBUTIONS_KEY in explanation_dict:  # uCAIP response.
-        attrs_key = _UCAIP_ATTRIBUTIONS_KEY
-        feature_attrs_key = _UCAIP_FEATURE_ATTRS_KEY
-        parse_fun = explanation.Explanation.from_unified_ai_platform_response
+      elif _VERTEX_ATTRIBUTIONS_KEY in explanation_dict:  # VERTEX response.
+        attrs_key = _VERTEX_ATTRIBUTIONS_KEY
+        feature_attrs_key = _VERTEX_FEATURE_ATTRS_KEY
+        parse_fun = explanation.Explanation.from_vertex_response
       else:
         raise KeyError(
             'Attribution keys are not present in the AI Platform response.')

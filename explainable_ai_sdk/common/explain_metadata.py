@@ -127,6 +127,7 @@ class Framework(utils.FieldKeys):
   TENSORFLOW = "tensorflow"
   TENSORFLOW2 = "tensorflow2"
   XGBOOST = "xgboost"
+  SCIKIT_LEARN = "scikit_learn"
   CUSTOM_CONTAINER = "custom_container"
 
 
@@ -419,7 +420,7 @@ class AttributionVisualizationKeys(object):
   }
 
   @classmethod
-  def values(cls, visualization_type: str = None):
+  def values(cls, visualization_type: Optional[str] = None):
     """Returns the set of valid keys under InputMetadata.visualization."""
     if not visualization_type:
       return AttributionVisualizationKeys.REQUIRED_KEYS
@@ -432,30 +433,30 @@ class InputMetadata(object):
 
   def __init__(self,
                name: str,
-               input_tensor_name: str = None,
-               input_tensor_dtype: str = None,
-               domain: Dict[str, Any] = None,
+               input_tensor_name: Optional[str] = None,
+               input_tensor_dtype: Optional[str] = None,
+               domain: Optional[Dict[str, Any]] = None,
                encoding: str = Encoding.IDENTITY,
-               indices_tensor_name: str = None,
-               indices_tensor_dtype: str = None,
-               dense_shape_tensor_name: str = None,
-               dense_shape_tensor_dtype: str = None,
-               input_baselines: List[Any] = None,
-               index_feature_mapping: List[Any] = None,
-               encoded_tensor_name: str = None,
-               encoded_tensor_dtype: str = None,
-               encoded_baselines: List[Any] = None,
+               indices_tensor_name: Optional[str] = None,
+               indices_tensor_dtype: Optional[str] = None,
+               dense_shape_tensor_name: Optional[str] = None,
+               dense_shape_tensor_dtype: Optional[str] = None,
+               input_baselines: Optional[List[Any]] = None,
+               index_feature_mapping: Optional[List[Any]] = None,
+               encoded_tensor_name: Optional[str] = None,
+               encoded_tensor_dtype: Optional[str] = None,
+               encoded_baselines: Optional[List[Any]] = None,
                modality: str = Modality.NUMERIC,
-               gradient_tensor_names: Dict[str, str] = None,
-               gradient_tensor_dtypes: Dict[str, str] = None,
-               weight_values_name: str = None,
-               weight_values_dtype: str = None,
-               weight_indices_name: str = None,
-               weight_indices_dtype: str = None,
-               weight_dense_shape_name: str = None,
-               weight_dense_shape_dtype: str = None,
-               visualization: Dict[str, str] = None,
-               group_name: str = None,
+               gradient_tensor_names: Optional[Dict[str, str]] = None,
+               gradient_tensor_dtypes: Optional[Dict[str, str]] = None,
+               weight_values_name: Optional[str] = None,
+               weight_values_dtype: Optional[str] = None,
+               weight_indices_name: Optional[str] = None,
+               weight_indices_dtype: Optional[str] = None,
+               weight_dense_shape_name: Optional[str] = None,
+               weight_dense_shape_dtype: Optional[str] = None,
+               visualization: Optional[Dict[str, str]] = None,
+               group_name: Optional[str] = None,
                is_sequential: bool = False):
     self._name = name
     self._input_tensor_name = input_tensor_name

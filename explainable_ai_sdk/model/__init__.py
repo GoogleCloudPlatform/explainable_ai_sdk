@@ -21,4 +21,4 @@ from explainable_ai_sdk.model import model_factory
 
 
 model_factory.register_caip_model(ai_platform_model.AIPlatformModel)
-model_factory.register_ucaip_model(ai_platform_model.AIPlatformModel)
+model_factory.register_vertex_model(ai_platform_model.AIPlatformModel)

@@ -52,7 +52,7 @@ class AIPlatformModelTest(tf.test.TestCase, parameterized.TestCase):
               'output_name': 'probability'
           }]
       }]
-  }), ('ucaip', {
+  }), ('vertex', {
       'explanations': [{
           'attributions': [{
               'baselineOutputValue': -0.84,

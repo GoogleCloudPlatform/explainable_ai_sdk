@@ -17,7 +17,7 @@
 
 import abc
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from explainable_ai_sdk.model import configs
 from explainable_ai_sdk.model import explanation
@@ -44,7 +44,7 @@ class Model(_ABC):
   def explain(
       self,
       instances: List[Any],
-      params: configs.AttributionParameters = None
+      params: Optional[configs.AttributionParameters] = None
   ) -> List[explanation.Explanation]:
     """Calls explanation services/libraries with the given instances.
 

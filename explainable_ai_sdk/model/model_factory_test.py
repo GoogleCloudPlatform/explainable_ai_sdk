@@ -53,9 +53,9 @@ class ModelFactoryTest(tf.test.TestCase):
         'models/fake_model',
         model._model_endpoint_uri)
 
-  def test_load_model_from_unified_ai_platform(self):
-    model_factory.register_ucaip_model(ai_platform_model.AIPlatformModel)
-    model = model_factory.load_model_from_unified_ai_platform(
+  def test_load_model_from_vertex(self):
+    model_factory.register_vertex_model(ai_platform_model.AIPlatformModel)
+    model = model_factory.load_model_from_vertex(
         'fake_project', 'fake_region', 'fake_endpoint')
     self.assertIsInstance(model, ai_platform_model.AIPlatformModel)
     self.assertEqual(

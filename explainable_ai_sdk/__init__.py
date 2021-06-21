@@ -22,4 +22,4 @@ import explainable_ai_sdk
 
 from explainable_ai_sdk.model.model_factory import load_model_from_ai_platform
 from explainable_ai_sdk.model.model_factory import load_model_from_local_path
-from explainable_ai_sdk.model.model_factory import load_model_from_unified_ai_platform
+from explainable_ai_sdk.model.model_factory import load_model_from_vertex

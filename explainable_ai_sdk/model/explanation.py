@@ -21,10 +21,12 @@ import base64
 import io
 from typing import Any, Dict, List, Optional
 
+import IPython
 from matplotlib import image as mpimg
 from matplotlib import pyplot as plt
 import numpy as np
 
+from xai_tabular_widget import TabularWidget
 from explainable_ai_sdk.common import attribution
 from explainable_ai_sdk.common import explain_metadata
 from explainable_ai_sdk.common import types
@@ -74,14 +76,14 @@ class Explanation(object):
     return cls(label_idx_to_attr, instance, modality_input_list_map)
 
   @classmethod
-  def from_unified_ai_platform_response(
+  def from_vertex_response(
       cls, attribution_dict: List[Dict[str, Any]],
       instance: types.Instance,
       modality_input_list_map: Dict[str, Any]):
-    """Forms an Explanation object from uCAIP model response.
+    """Forms an Explanation object from Vertex model response.
 
     Args:
-      attribution_dict: Attribution response from Unified AI Platform.
+      attribution_dict: Attribution response from Vertex AI.
       instance: A dictionary of values representing the data point.
       modality_input_list_map: Dictionary mapping from modality to a list of
         input names.
@@ -89,7 +91,7 @@ class Explanation(object):
     Returns:
       A newly-created Explanation object.
     """
-    label_idx_to_attr = attribution.LabelIndexToAttribution.from_ucaip_response(
+    label_idx_to_attr = attribution.LabelIndexToAttribution.from_vertex_response(
         attribution_dict)
     return cls(label_idx_to_attr, instance, modality_input_list_map)
 
@@ -248,17 +250,22 @@ class Explanation(object):
         plt.show()
 
   def _visualize_tabular_attributions(self, label_index: Optional[int] = None):
-    """Visualizes tabular attributions.
+    """Displays a single tabular attribution through the Tabular Widget.
 
     Args:
       label_index: If label_index is given, return the attribution of the given
         label. If not, will use the label with highest prediction score.
     """
     if constants.TABULAR_MODALITY in self._modality_input_list_map:
-      self.visualize_top_k_features(
-          k=len(self._modality_input_list_map[constants.TABULAR_MODALITY]),
-          label_index=label_index,
-          modality=constants.TABULAR_MODALITY)
+      target_label_attr = self.get_attribution(label_index).to_json(
+          include_input_values=True)
+      widget = TabularWidget()
+
+      def input_to_widget():
+        widget.load_data_from_json(target_label_attr)
+
+      widget.on_trait_change(input_to_widget, 'ready')
+      IPython.display.display(widget)
 
   def visualize_attributions(
       self,

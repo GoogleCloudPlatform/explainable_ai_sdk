@@ -28,7 +28,7 @@ CAIP_API_ENDPOINT = 'https://ml.googleapis.com/'
 CAIP_API_REGION_ENDPOINT = 'https://{region}-ml.googleapis.com/'
 CAIP_API_ENDPOINT_VERSION = 'v1'
 
-UCAIP_PREDICTION_API_ENDPOINT = 'https://{region}-prediction-aiplatform.googleapis.com'
-UCAIP_API_ENDPOINT_VERSION = 'v1beta1'
+VERTEX_PREDICTION_API_ENDPOINT = 'https://{region}-prediction-aiplatform.googleapis.com'
+VERTEX_API_ENDPOINT_VERSION = 'v1beta1'
 
 AIP_ENDPOINT_OVERRIDE = 'CLOUDSDK_API_ENDPOINT_OVERRIDES_ML'

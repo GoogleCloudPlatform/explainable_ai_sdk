@@ -80,14 +80,14 @@ class UtilsTest(tf.test.TestCase, parameterized.TestCase):
   @parameterized.named_parameters(
       ('caip', 'uc-central1', False,
        'https://uc-central1-ml.googleapis.com/v1/m/1/e/4'),
-      ('ucaip', 'us-east1', True,
+      ('vertex', 'us-east1', True,
        'https://us-east1-prediction-aiplatform.googleapis.com/v1beta1/m/1/e/4'),
       ('caip_no_region', None, False,
        'https://ml.googleapis.com/v1/m/1/e/4'))
-  def test_get_endpoint_uri(self, region, is_ucaip, expected_uri):
+  def test_get_endpoint_uri(self, region, is_vertex, expected_uri):
     self.assertEqual(
         expected_uri,
-        utils.get_endpoint_uri('m/1/e/4', region, is_ucaip))
+        utils.get_endpoint_uri('m/1/e/4', region, is_vertex))
 
   @mock.patch.dict(os.environ,
                    {constants.AIP_ENDPOINT_OVERRIDE: 'https://overriden'})

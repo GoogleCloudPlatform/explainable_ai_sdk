@@ -127,13 +127,13 @@ def create_modality_inputs_map_from_metadata(
 
 def get_endpoint_uri(resource_path: str,
                      region: Optional[str] = None,
-                     is_ucaip: bool = False) -> str:
+                     is_vertex: bool = False) -> str:
   """Creates the endpoint URI string from given model parameters.
 
   Args:
     resource_path: Full model path on the model endpoint.
     region: Region of the model.
-    is_ucaip: Boolean flag to indicate if the model is a uCAIP model.
+    is_vertex: Boolean flag to indicate if the model is a Vertex model.
 
   Returns:
     Full endpoint URI to issue a request to.
@@ -141,12 +141,12 @@ def get_endpoint_uri(resource_path: str,
   if os.getenv(constants.AIP_ENDPOINT_OVERRIDE):
     ai_platform_endpoint = os.getenv(constants.AIP_ENDPOINT_OVERRIDE)
     version = constants.CAIP_API_ENDPOINT_VERSION
-  elif is_ucaip:
+  elif is_vertex:
     if not region:
-      raise ValueError('uCAIP models require model region.')
-    ai_platform_endpoint = constants.UCAIP_PREDICTION_API_ENDPOINT.format(
+      raise ValueError('Vertex models require model region.')
+    ai_platform_endpoint = constants.VERTEX_PREDICTION_API_ENDPOINT.format(
         region=region)
-    version = constants.UCAIP_API_ENDPOINT_VERSION
+    version = constants.VERTEX_API_ENDPOINT_VERSION
   else:
     if region:
       ai_platform_endpoint = constants.CAIP_API_REGION_ENDPOINT.format(

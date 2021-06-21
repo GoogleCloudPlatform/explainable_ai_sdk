@@ -14,14 +14,14 @@
 
 """Utilities for runtime variable validations."""
 
-from typing import get_type_hints, List, Dict, Union, Any
+from typing import Any, Dict, List, Optional, Union, get_type_hints
 from absl import logging
 
 
 def validate_is_instance(var: Any,
                          var_name: str,
                          instance_type: Any,
-                         class_name: str = None,
+                         class_name: Optional[str] = None,
                          log_metadata_validation_failures: bool = True) -> None:
   """Validates the type of the given variable and raises exception if not pass.
 
@@ -92,7 +92,7 @@ def validate_object_init_type_hint(obj: object,
 def validate_is_in(var: Any,
                    var_name: str,
                    list_type: Any,
-                   class_name: str = None,
+                   class_name: Optional[str] = None,
                    log_metadata_validation_failures: bool = True) -> None:
   """Validates if the given variable is a member of the given list-type object.
 

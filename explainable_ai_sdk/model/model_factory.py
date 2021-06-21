@@ -26,7 +26,7 @@ from explainable_ai_sdk.model import model as model_lib
 from explainable_ai_sdk.model import utils
 
 _CAIP_MODEL_KEY = 'caip_model'
-_UCAIP_MODEL_KEY = 'ucaip_model'
+_VERTEX_MODEL_KEY = 'vertex_model'
 _LOCAL_MODEL_KEY = 'local_model'
 _MODEL_REGISTRY = {}
 
@@ -76,7 +76,7 @@ def load_model_from_ai_platform(
                                           input_modalities)
 
 
-def load_model_from_unified_ai_platform(
+def load_model_from_vertex(
     project: str,
     region: str,
     endpoint_id: str,
@@ -102,13 +102,13 @@ def load_model_from_unified_ai_platform(
   Raises:
     NotImplementedError: If there are no registered remote models.
   """
-  if _UCAIP_MODEL_KEY not in _MODEL_REGISTRY:
+  if _VERTEX_MODEL_KEY not in _MODEL_REGISTRY:
     available_models = ', '.join(_MODEL_REGISTRY)
-    raise NotImplementedError('There are no implementations for uCAIP models. '
+    raise NotImplementedError('There are no implementations for Vertex models. '
                               f'Avilable models are: {{{available_models}}}.')
   resource_path = os.path.join('projects', project, 'locations', region,
                                'endpoints', endpoint_id)
-  return _MODEL_REGISTRY[_UCAIP_MODEL_KEY](utils.get_endpoint_uri(
+  return _MODEL_REGISTRY[_VERTEX_MODEL_KEY](utils.get_endpoint_uri(
       resource_path, region, True), credentials, input_modalities)
 
 
@@ -136,9 +136,9 @@ def register_caip_model(registered_class: Type[model_lib.Model]) -> None:
   _MODEL_REGISTRY[_CAIP_MODEL_KEY] = registered_class
 
 
-def register_ucaip_model(registered_class: Type[model_lib.Model]) -> None:
-  """Register given Unified AI Platform model class."""
-  _MODEL_REGISTRY[_UCAIP_MODEL_KEY] = registered_class
+def register_vertex_model(registered_class: Type[model_lib.Model]) -> None:
+  """Register given Vertex AI model class."""
+  _MODEL_REGISTRY[_VERTEX_MODEL_KEY] = registered_class
 
 
 def register_local_model(registered_class: Type[model_lib.Model]) -> None:

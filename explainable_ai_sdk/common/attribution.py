@@ -48,9 +48,9 @@ COMPRESSED_ATTRS_DICT = 'compressed_attrs_dict'
 # attribution object, if requested by the user.
 INPUT_VALUES_DICT = 'input_values_dict'
 
-# Keys in uCAIP response dictionary.
-_UCAIP_ATTRIBUTIONS = 'attributions'
-_UCAIP_KEY_MAP = {
+# Keys in Vertex response dictionary.
+_VERTEX_ATTRIBUTIONS = 'attributions'
+_VERTEX_KEY_MAP = {
     'outputName': OUTPUT_NAME,
     'instanceOutputValue': EXAMPLE_SCORE,
     'outputIndex': LABEL_INDEX,
@@ -154,12 +154,12 @@ class Attribution(object):
                output_name: str,
                baseline_score: float,
                example_score: float,
-               values_dict: Dict[str, Any] = None,
-               attrs_dict: Dict[str, Any] = None,
-               label_index: Union[int, Tuple[int, int]] = None,
-               processed_attrs_dict: Dict[str, Any] = None,
-               approx_error: float = None,
-               label_name: str = None):
+               values_dict: Optional[Dict[str, Any]] = None,
+               attrs_dict: Optional[Dict[str, Any]] = None,
+               label_index: Optional[Union[int, Tuple[int, int]]] = None,
+               processed_attrs_dict: Optional[Dict[str, Any]] = None,
+               approx_error: Optional[float] = None,
+               label_name: Optional[str] = None):
     """Returns an Attribution  object.
 
     Args:
@@ -542,22 +542,22 @@ class LabelIndexToAttribution(collections.abc.Mapping):
     return cls.from_list(attr_dict_list)
 
   @classmethod
-  def from_ucaip_response(cls, ucaip_response: List[Dict[str, Any]]):
-    """Creates a LabelIndexToAttribution instance from a uCAIP attributions.
+  def from_vertex_response(cls, vertex_response: List[Dict[str, Any]]):
+    """Creates a LabelIndexToAttribution instance from a Vertex attributions.
 
     Args:
-      ucaip_response: List of attributions in the response from uCAIP service.
+      vertex_response: List of attributions in the response from Vertex service.
 
     Returns:
       A LabelIndexToAttribution instance.
     """
-    return cls.from_list(_map_ucaip_attribution_keys(ucaip_response))
+    return cls.from_list(_map_vertex_attribution_keys(vertex_response))
 
 
-def _map_ucaip_attribution_keys(
+def _map_vertex_attribution_keys(
     attributions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-  """Remaps keys in uCAIP attributions to AIP attributions."""
-  if set(*[attr.keys() for attr in attributions]) - set(_UCAIP_KEY_MAP.keys()):
-    raise KeyError('Unrecognized key in uCAIP attribution.')
+  """Remaps keys in Vertex attributions to AIP attributions."""
+  if set(*[attr.keys() for attr in attributions]) - set(_VERTEX_KEY_MAP.keys()):
+    raise KeyError('Unrecognized key in Vertex attribution.')
 
-  return [{_UCAIP_KEY_MAP[k]: row[k] for k in row} for row in attributions]
+  return [{_VERTEX_KEY_MAP[k]: row[k] for k in row} for row in attributions]

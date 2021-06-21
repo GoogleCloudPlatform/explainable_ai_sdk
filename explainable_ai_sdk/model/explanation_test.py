@@ -110,16 +110,22 @@ class ExplanationTest(tf.test.TestCase):
     self.explanation.visualize_top_k_features()
     self.assertTrue(mock_show.called)
 
-  @mock.patch.object(plt, 'show', autospec=True)
-  def test_visualize_attributions(self, mock_show):
-    self.explanation.visualize_attributions()
-    self.assertTrue(mock_show.called)
+  # IPython.display.display must be mocked outside of a Jupyter environment
+  def fake_ipython_display(self, target):
+    pass
+
+  def test_visualize_attributions(self):
+    with mock.patch(
+        'IPython.display.display',
+        wraps=self.fake_ipython_display) as mock_display:
+      self.explanation.visualize_attributions()
+      mock_display.assert_called_once()
 
   def test_no_label_index_output(self):
-    with mock.patch('sys.stdout', io.StringIO()) as mock_stdout:
-      self.explanation.visualize_attributions(
-          print_label_index=False)
-      self.assertNotIn('Label Index ', mock_stdout.getvalue())
+    with mock.patch('IPython.display.display', wraps=self.fake_ipython_display):
+      with mock.patch('sys.stdout', io.StringIO()) as mock_stdout:
+        self.explanation.visualize_attributions(print_label_index=False)
+        self.assertNotIn('Label Index ', mock_stdout.getvalue())
 
 
 if __name__ == '__main__':
