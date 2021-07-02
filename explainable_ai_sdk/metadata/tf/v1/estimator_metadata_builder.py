@@ -218,7 +218,7 @@ class EstimatorMetadataBuilder(metadata_builder.MetadataBuilder):
       features_dict: Dict[Text, List[monkey_patch_utils.FeatureTensors]],
       crossed_columns: Set[Text],
       desired_columns: List[Text],
-      output_dict: Dict[Text, tf.Tensor]) -> Dict[Text, Any]:
+      output_dict: Dict[Text, tf.Tensor]) -> explain_metadata.ExplainMetadata:
     """Creates metadata from given tensor information.
 
     Args:
@@ -238,7 +238,7 @@ class EstimatorMetadataBuilder(metadata_builder.MetadataBuilder):
             desired_columns),
         outputs=self._create_output_metadata(output_dict),
         framework='Tensorflow',
-        tags=[constants.METADATA_TAG]).to_dict()
+        tags=[constants.METADATA_TAG])
 
   def save_model_with_metadata(self, file_path: str) -> str:
     """Saves the model and the generated metadata to the given file path.
@@ -265,7 +265,7 @@ class EstimatorMetadataBuilder(metadata_builder.MetadataBuilder):
           monkey_patcher.crossed_columns,
           [fc.name for fc in self._feature_columns],
           monkey_patcher.output_tensors_dict)
-    utils.write_metadata_to_file(self._metadata, model_path)
+    utils.write_metadata_to_file(self._metadata.to_dict(), model_path)
     return model_path
 
   def get_metadata(self) -> Dict[str, Any]:
@@ -277,8 +277,8 @@ class EstimatorMetadataBuilder(metadata_builder.MetadataBuilder):
     temporary folder is deleted afterwards.
     """
     if self._metadata:
-      return self._metadata
+      return self._metadata.to_dict()
     temp_location = tempfile.gettempdir()
     model_path = self.save_model_with_metadata(temp_location)
     shutil.rmtree(model_path)
-    return self._metadata
+    return self._metadata.to_dict()

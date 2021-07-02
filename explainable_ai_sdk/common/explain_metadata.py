@@ -2297,6 +2297,37 @@ def validate_integrated_gradients(explain_md: ExplainMetadata):
                        "input tensor is sparse for integrated gradient.")
 
 
+def validate_xrai(explain_md: ExplainMetadata):
+  """Perform XRAI-specific metadata validation.
+
+  Args:
+    explain_md: explain_medata to be validated
+  """
+  # XRAI can only be applied to image data. If it is not an image
+  # then throw an error.
+  logging.debug("XAI Validation :: Metadata: [XRAI] "
+                "input `modality` must be `image` for XRAI.")
+  # XRAI result only makes sense for Pixel visualization type
+  logging.debug("XAI Validation :: Metadata: [XRAI] "
+                "input visualization type must be `pixels` for XRAI.")
+
+  validate_modality(explain_md, Modality.IMAGE)
+  for i, in_md in enumerate(explain_md.inputs):
+    if in_md.visualization is None:
+      continue
+
+    # if visualization config is present and type is not set, set the type
+    # to be Pixels as this is the only visualization type XRAI should use
+    if AttributionVisualizationRequiredKeys.TYPE not in in_md.visualization:
+      in_md.visualization[AttributionVisualizationRequiredKeys
+                          .TYPE] = AttributionVisualizationTypes.PIXELS
+      explain_md.inputs[i] = in_md
+
+    viz_type = in_md.visualization[AttributionVisualizationRequiredKeys.TYPE]
+    if viz_type != AttributionVisualizationTypes.PIXELS:
+      raise ValueError("input visualization type must be pixels for XRAI.")
+
+
 def validate_modality(explain_md: ExplainMetadata, expected_modality: str):
   for input_md in explain_md.inputs:
     if input_md.modality != expected_modality:
