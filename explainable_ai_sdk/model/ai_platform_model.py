@@ -39,7 +39,7 @@ class AIPlatformModel(model.Model):
       self,
       model_endpoint_uri: str,
       credentials: Optional[google.auth.credentials.Credentials] = None,
-      modality_to_inputs_map: Optional[Dict[str, str]] = None):
+      modality_to_inputs_map: Optional[Dict[str, List[str]]] = None):
     """Constructs a model backed by an endpoint on AI Platform.
 
     Args:

@@ -266,7 +266,7 @@ class EstimatorMetadataBuilder(metadata_builder.MetadataBuilder):
           [fc.name for fc in self._feature_columns],
           monkey_patcher.output_tensors_dict)
     utils.write_metadata_to_file(self._metadata.to_dict(), model_path)
-    return model_path
+    return model_path.decode('utf-8')
 
   def get_metadata(self) -> Dict[str, Any]:
     """Returns the current metadata as a dictionary.

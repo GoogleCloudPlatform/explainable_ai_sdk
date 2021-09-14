@@ -19,7 +19,7 @@ the actual user interface. Classes in this module should be used instead of the
 ones in explain_metadata.py.
 """
 import enum
-from typing import Optional, Dict, Any, Union
+from typing import Optional, Dict, Any, Union, Tuple
 import dataclasses
 
 
@@ -111,6 +111,11 @@ class VisualizationParameters(object):
     overlay_multiplier: A multiplier in range [0, 1] indicating the fraction
       of the input image to include in the overlayed visualization (the other
       fraction, i.e. 1 - overlay_multiplier, applies to the attributions).
+    resized_shape: Resizes the attributions in the visualization. It will be
+      applied when the instance (before any transformation) is given.
+    translate: Translates the origin of the visualization by [x, y]. Both of
+        them needs to be non-negative. Please note that the x corresponds to
+        columns and y corresponds to the columns.
   """
   type: Optional[VisualizationType] = None
   polarity: Optional[Polarity] = None
@@ -122,6 +127,9 @@ class VisualizationParameters(object):
 
   overlay_type: Optional[OverlayType] = None
   overlay_multiplier: Optional[float] = None
+
+  resized_shape: Optional[Tuple[int, int]] = None
+  translate: Optional[Tuple[int, int]] = None
 
   def asdict(self) -> Dict[str, Union[float, str]]:
     """Returns the dictionary representation of visualization parameters."""

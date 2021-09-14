@@ -224,7 +224,7 @@ class GraphMetadataBuilderTest(tf.test.TestCase, parameterized.TestCase):
   def test_save_model_with_metadata_kwargs(self):
     builder = graph_metadata_builder.GraphMetadataBuilder(
         session=self.sess,
-        tags=['testing'],
+        tags={'testing'},
         strip_default_attrs=False)
     builder.add_image_metadata(
         self.linear_layer, visualization={'type': 'Pixels'})

@@ -7,3 +7,4 @@ google.auth>=1.14.1
 
 ipython
 xai_tabular_widget
+xai_image_widget

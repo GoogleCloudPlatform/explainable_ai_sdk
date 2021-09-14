@@ -21,7 +21,7 @@ import base64
 import collections
 import gzip
 import json
-from typing import Any, Dict, List, Tuple, Union, Optional
+from typing import Any, Dict, List, Tuple, Union, Optional, Iterable
 import numpy as np
 
 from explainable_ai_sdk.common import constants
@@ -63,7 +63,7 @@ _VERTEX_KEY_MAP = {
 ABC = abc.ABCMeta('ABC', (object,), {'__slots__': ()})
 
 
-def _convert_dict_to_numpy_types(obj):
+def _convert_dict_to_numpy_types(obj: Dict[Any, Any]) -> Dict[Any, np.ndarray]:
   """Converts data in a dict into corresponding numpy types.
 
   Args:
@@ -203,54 +203,64 @@ class Attribution(object):
     self._label_index = label_index
     self._label_name = label_name
 
-  def __repr__(self):
+  def __repr__(self) -> str:
     return str(self.__dict__)
 
   @property
-  def baseline_score(self):
+  def baseline_score(self) -> float:
     return self._baseline_score
 
   @property
-  def output_name(self):
+  def output_name(self) -> str:
     return self._output_name
 
   @property
-  def example_score(self):
+  def example_score(self) -> float:
     return self._example_score
 
   @property
-  def attrs_dict(self):
+  def attrs_dict(self) -> Dict[str, Any]:
     return self._attrs_dict
 
   @property
-  def values_dict(self):
+  def values_dict(self) -> Dict[str, Any]:
     return self._values_dict
 
   @property
-  def label_index(self):
+  def label_index(self) -> Union[int, Tuple[int, int]]:
     return self._label_index
 
   @property
-  def label_name(self):
+  def label_name(self) -> str:
     return self._label_name
 
   @property
-  def approx_error(self):
+  def approx_error(self) -> float:
     return self._approx_error
 
   @property
-  def post_processed_attributions(self):
+  def post_processed_attributions(self) -> Dict[str, Any]:
     return self._processed_attrs_dict
 
-  def _get_attributions_dict(self):
+  def _get_attributions_dict(self) -> Dict[str, Any]:
     """Returns sanitized, structured attributions dict keyed by feature name."""
     ret = {}
     for feature_name, attrs in self.post_processed_attributions.items():
       # Sanitize the pretty-formatted to_dict output for images.
       # We'll remove all other entries except for B64_JPEG which holds the
       # visualized image output.
-      if isinstance(attrs, dict) and constants.B64_JPEG in attrs:
-        ret[feature_name] = {constants.B64_JPEG: attrs[constants.B64_JPEG]}
+      if isinstance(attrs, dict) and (constants.B64_JPEG in attrs or
+                                      constants.B64_PNG in attrs):
+        transformed_key = None
+        if constants.B64_JPEG in attrs:
+          ret[feature_name] = {constants.B64_JPEG: attrs[constants.B64_JPEG]}
+          transformed_key = constants.TRANSFORMED_PREFIX + constants.B64_JPEG
+        elif constants.B64_PNG in attrs:
+          ret[feature_name] = {constants.B64_PNG: attrs[constants.B64_PNG]}
+          transformed_key = constants.TRANSFORMED_PREFIX + constants.B64_PNG
+
+        if transformed_key and transformed_key in attrs:
+          ret[feature_name][transformed_key] = attrs[transformed_key]
       else:
         ret[feature_name] = attrs
     return ret
@@ -258,7 +268,7 @@ class Attribution(object):
   def to_dict(self,
               debug: bool = False,
               include_compressed_attrs_dict: bool = False,
-              include_input_values: bool = False):
+              include_input_values: bool = False) -> Dict[str, Any]:
     """Returns a dict of this attribution.
 
     Args:
@@ -294,7 +304,7 @@ class Attribution(object):
     return {key: val for key, val in ret.items() if val is not None}
 
   @classmethod
-  def from_dict(cls, attrs_obj_dict: Dict[Any, Any]):
+  def from_dict(cls, attrs_obj_dict: Dict[Any, Any]) -> 'Attribution':
     """Construct the Attribution class from a dict returned by the service.
 
     Args:
@@ -335,7 +345,7 @@ class Attribution(object):
   def to_json(self,
               debug: bool = False,
               include_compressed_attrs_dict: bool = False,
-              include_input_values: bool = False):
+              include_input_values: bool = False) -> str:
     """Returns a string JSON representation of this attribution.
 
     Args:
@@ -350,7 +360,7 @@ class Attribution(object):
     return json.dumps(ret_sanitized, sort_keys=True, cls=_NumpyEncoder)
 
   @classmethod
-  def from_json(cls, attrs_obj_json: str):
+  def from_json(cls, attrs_obj_json: str) -> 'Attribution':
     """Construct the Attribution class from a json str returned by the service.
 
     Args:
@@ -433,16 +443,17 @@ class LabelIndexToAttribution(collections.abc.Mapping):
         else:
           self._data[attr.label_index] = attr
 
-  def __getitem__(self, key):
+  def __getitem__(self, key) -> Attribution:
     return self._data[key]
 
-  def __iter__(self):
+  def __iter__(self) -> Iterable[Union[int, Tuple[int, int]]]:
     return iter(self._data)
 
-  def __len__(self):
+  def __len__(self) -> int:
     return len(self._data)
 
-  def get_top_k_label_index_list(self, k=1):
+  def get_top_k_label_index_list(
+      self, k=1) -> Union[List[int], List[Tuple[int, int]]]:
     """Returns top k label index in a list (sorted by example scores).
 
     Args:
@@ -457,7 +468,7 @@ class LabelIndexToAttribution(collections.abc.Mapping):
 
   def to_dict(self,
               debug: bool = False,
-              include_compressed_attrs_dict: bool = False):
+              include_compressed_attrs_dict: bool = False) -> Dict[str, Any]:
     """Returns a dictionary mapping label index to attribution dict.
 
     Args:
@@ -473,9 +484,10 @@ class LabelIndexToAttribution(collections.abc.Mapping):
           ret[str(key)] = val_dict
     return ret
 
-  def to_list(self,
-              debug: bool = False,
-              include_compressed_attrs_dict: bool = False):
+  def to_list(
+      self,
+      debug: bool = False,
+      include_compressed_attrs_dict: bool = False) -> List[Dict[str, Any]]:
     """Returns list representation of the attributions sorted by example scores.
 
     Args:
@@ -492,7 +504,7 @@ class LabelIndexToAttribution(collections.abc.Mapping):
 
   def to_json(self,
               debug: bool = False,
-              include_compressed_attrs_dict: bool = False):
+              include_compressed_attrs_dict: bool = False) -> str:
     """Returns a string JSON representation of this LabelIndexToAttribution.
 
     Since dictionary representation cannot retain the order, we return a list
@@ -507,7 +519,8 @@ class LabelIndexToAttribution(collections.abc.Mapping):
         self.to_list(debug, include_compressed_attrs_dict), cls=_NumpyEncoder)
 
   @classmethod
-  def from_list(cls, attr_dict_list: List[Dict[Any, Any]]):
+  def from_list(
+      cls, attr_dict_list: List[Dict[Any, Any]]) -> 'LabelIndexToAttribution':
     """Creating a LabelIndexToAttribution instance from a list.
 
     Args:
@@ -524,7 +537,7 @@ class LabelIndexToAttribution(collections.abc.Mapping):
     return cls(attr_obj_list)
 
   @classmethod
-  def from_json(cls, json_str: str):
+  def from_json(cls, json_str: str) -> 'LabelIndexToAttribution':
     """Creating a LabelIndexToAttribution instance from a json str.
 
     JsonDecoder cannot handle array conversion direction via object_hook.
@@ -542,7 +555,8 @@ class LabelIndexToAttribution(collections.abc.Mapping):
     return cls.from_list(attr_dict_list)
 
   @classmethod
-  def from_vertex_response(cls, vertex_response: List[Dict[str, Any]]):
+  def from_vertex_response(
+      cls, vertex_response: List[Dict[str, Any]]) -> 'LabelIndexToAttribution':
     """Creates a LabelIndexToAttribution instance from a Vertex attributions.
 
     Args:

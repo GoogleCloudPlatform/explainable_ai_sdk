@@ -83,7 +83,7 @@ def load_model_from_vertex(
     credentials: Optional[google.auth.credentials.Credentials] = None,
     input_modalities: Optional[Dict[str, str]] = None
 ) -> model_lib.Model:
-  """Loads a model from Unified Cloud AI Platform.
+  """Loads a model from Cloud AI Vertex.
 
   Args:
     project: AI Platform project name.

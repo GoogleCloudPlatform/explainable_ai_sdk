@@ -41,7 +41,6 @@ Example usage is as follows:
 """
 from typing import Dict, Text, Optional, List, Any, Set, Union
 import tensorflow.compat.v1 as tf
-import tensorflow.compat.v1.keras as keras
 from explainable_ai_sdk.metadata import parameters
 from explainable_ai_sdk.metadata.tf.v1 import graph_metadata_builder
 
@@ -50,7 +49,7 @@ class KerasGraphMetadataBuilder(graph_metadata_builder.GraphMetadataBuilder):
   """Class for generating metadata for models built with Keras API."""
 
   def __init__(self,
-               model: keras.Model,
+               model: tf.keras.Model,
                outputs_to_explain: Optional[List[tf.Tensor]] = (),
                session: tf.Session = None,
                serving_inputs: Optional[Dict[Text, tf.Tensor]] = None,
@@ -92,7 +91,7 @@ class KerasGraphMetadataBuilder(graph_metadata_builder.GraphMetadataBuilder):
     self._inputs, self._outputs = {}, {}
     if auto_infer:
       self._create_metadata_entries_from_model()
-    self._session = session if session else keras.backend.get_session()
+    self._session = session if session else tf.keras.backend.get_session()
     self._serving_inputs = serving_inputs
     self._serving_outputs = serving_outputs
     self._saved_model_args = kwargs
@@ -113,7 +112,7 @@ class KerasGraphMetadataBuilder(graph_metadata_builder.GraphMetadataBuilder):
 
   def set_categorical_metadata(self,
                                model_input: tf.Tensor,
-                               encoded_layer: keras.layers.Layer,
+                               encoded_layer: tf.keras.layers.Layer,
                                encoding: Text,
                                name: Optional[Text] = None,
                                input_baselines: Optional[List[Any]] = None,
@@ -164,7 +163,7 @@ class KerasGraphMetadataBuilder(graph_metadata_builder.GraphMetadataBuilder):
 
   def set_text_metadata(self,
                         model_input: tf.Tensor,
-                        encoded_layer: keras.layers.Layer,
+                        encoded_layer: tf.keras.layers.Layer,
                         encoding: Text,
                         name: Optional[Text] = None,
                         input_baselines: Optional[List[Any]] = None,

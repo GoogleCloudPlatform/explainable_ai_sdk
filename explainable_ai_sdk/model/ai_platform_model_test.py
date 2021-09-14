@@ -32,13 +32,13 @@ class AIPlatformModelTest(tf.test.TestCase, parameterized.TestCase):
         http_utils, 'make_post_request_to_ai_platform', autospec=True).start()
 
   def test_predict(self):
-    self._mock_post_request_func.return_value = {'predictions': [0.5]}
+    self._mock_post_request_func.return_value = [{'predictions': [0.5]}]
 
     m = ai_platform_model.AIPlatformModel('fake_end_point')
     instances = [{'images_str': {'b64': u'fake_b64_str'}}]
     predictions = m.predict(instances)
 
-    self.assertEqual(predictions['predictions'][0], 0.5)
+    self.assertEqual(predictions[0]['predictions'][0], 0.5)
 
   @parameterized.named_parameters(('caip', {
       'explanations': [{

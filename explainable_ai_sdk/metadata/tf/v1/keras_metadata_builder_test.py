@@ -18,7 +18,6 @@ import json
 import os
 import numpy as np
 import tensorflow.compat.v1 as tf
-import tensorflow.compat.v1.keras as keras
 from explainable_ai_sdk.metadata import parameters
 from explainable_ai_sdk.metadata.tf.v1 import keras_metadata_builder
 
@@ -28,10 +27,11 @@ class KerasGraphMetadataBuilderTest(tf.test.TestCase):
   @classmethod
   def setUpClass(cls):
     super(KerasGraphMetadataBuilderTest, cls).setUpClass()
-    cls.seq_model = keras.models.Sequential()
-    cls.seq_model.add(keras.layers.Dense(32, activation='relu', input_dim=10))
-    cls.seq_model.add(keras.layers.Dense(32, activation='relu'))
-    cls.seq_model.add(keras.layers.Dense(1, activation='sigmoid'))
+    cls.seq_model = tf.keras.models.Sequential()
+    cls.seq_model.add(
+        tf.keras.layers.Dense(32, activation='relu', input_dim=10))
+    cls.seq_model.add(tf.keras.layers.Dense(32, activation='relu'))
+    cls.seq_model.add(tf.keras.layers.Dense(1, activation='sigmoid'))
 
   def test_get_metadata_sequential(self):
     builder = keras_metadata_builder.KerasGraphMetadataBuilder(self.seq_model)
@@ -55,13 +55,13 @@ class KerasGraphMetadataBuilderTest(tf.test.TestCase):
     self.assertDictEqual(expected_md, generated_md)
 
   def test_get_metadata_functional(self):
-    inputs1 = keras.Input(shape=(10,), name='model_input1')
-    inputs2 = keras.Input(shape=(10,), name='model_input2')
-    x = keras.layers.Dense(32, activation='relu')(inputs1)
-    x = keras.layers.Dense(32, activation='relu')(x)
-    x = keras.layers.concatenate([x, inputs2])
-    outputs = keras.layers.Dense(1, activation='sigmoid')(x)
-    fun_model = keras.Model(
+    inputs1 = tf.keras.Input(shape=(10,), name='model_input1')
+    inputs2 = tf.keras.Input(shape=(10,), name='model_input2')
+    x = tf.keras.layers.Dense(32, activation='relu')(inputs1)
+    x = tf.keras.layers.Dense(32, activation='relu')(x)
+    x = tf.keras.layers.concatenate([x, inputs2])
+    outputs = tf.keras.layers.Dense(1, activation='sigmoid')(x)
+    fun_model = tf.keras.Model(
         inputs=[inputs1, inputs2], outputs=outputs, name='fun')
     builder = keras_metadata_builder.KerasGraphMetadataBuilder(fun_model)
     generated_md = builder.get_metadata()
@@ -90,13 +90,13 @@ class KerasGraphMetadataBuilderTest(tf.test.TestCase):
 
   def test_get_metadata_subclassed_model(self):
 
-    class MyModel(keras.Model):
+    class MyModel(tf.keras.Model):
 
       def __init__(self, num_classes=2):
         super(MyModel, self).__init__(name='my_model')
         self.num_classes = num_classes
-        self.dense_1 = keras.layers.Dense(32, activation='relu')
-        self.dense_2 = keras.layers.Dense(num_classes, activation='sigmoid')
+        self.dense_1 = tf.keras.layers.Dense(32, activation='relu')
+        self.dense_2 = tf.keras.layers.Dense(num_classes, activation='sigmoid')
 
       def call(self, inputs):
         x = self.dense_1(inputs)
@@ -290,12 +290,12 @@ class KerasGraphMetadataBuilderTest(tf.test.TestCase):
     self.assertDictEqual(expected_md, generated_md)
 
   def test_get_metadata_multiple_outputs(self):
-    inputs1 = keras.Input(shape=(10,), name='model_input')
-    x = keras.layers.Dense(32, activation='relu')(inputs1)
-    x = keras.layers.Dense(32, activation='relu')(x)
-    outputs1 = keras.layers.Dense(1, activation='sigmoid')(x)
-    outputs2 = keras.layers.Dense(1, activation='relu')(x)
-    fun_model = keras.Model(
+    inputs1 = tf.keras.Input(shape=(10,), name='model_input')
+    x = tf.keras.layers.Dense(32, activation='relu')(inputs1)
+    x = tf.keras.layers.Dense(32, activation='relu')(x)
+    outputs1 = tf.keras.layers.Dense(1, activation='sigmoid')(x)
+    outputs2 = tf.keras.layers.Dense(1, activation='relu')(x)
+    fun_model = tf.keras.Model(
         inputs=[inputs1], outputs=[outputs1, outputs2], name='fun')
 
     builder = keras_metadata_builder.KerasGraphMetadataBuilder(
@@ -309,12 +309,12 @@ class KerasGraphMetadataBuilderTest(tf.test.TestCase):
     self.assertDictEqual(expected_outputs, generated_md['outputs'])
 
   def test_get_metadata_multiple_outputs_incorrect_output(self):
-    inputs1 = keras.Input(shape=(10,), name='model_input')
-    x = keras.layers.Dense(32, activation='relu')(inputs1)
-    x = keras.layers.Dense(32, activation='relu')(x)
-    outputs1 = keras.layers.Dense(1, activation='sigmoid')(x)
-    outputs2 = keras.layers.Dense(1, activation='relu')(x)
-    fun_model = keras.Model(
+    inputs1 = tf.keras.Input(shape=(10,), name='model_input')
+    x = tf.keras.layers.Dense(32, activation='relu')(inputs1)
+    x = tf.keras.layers.Dense(32, activation='relu')(x)
+    outputs1 = tf.keras.layers.Dense(1, activation='sigmoid')(x)
+    outputs2 = tf.keras.layers.Dense(1, activation='relu')(x)
+    fun_model = tf.keras.Model(
         inputs=[inputs1], outputs=[outputs1, outputs2], name='fun')
 
     with self.assertRaisesRegex(ValueError,
@@ -324,9 +324,9 @@ class KerasGraphMetadataBuilderTest(tf.test.TestCase):
 
   def test_save_model_with_metadata(self):
     tf.reset_default_graph()
-    model = keras.models.Sequential()
-    model.add(keras.layers.Dense(32, activation='relu', input_dim=10))
-    model.add(keras.layers.Dense(1, activation='sigmoid'))
+    model = tf.keras.models.Sequential()
+    model.add(tf.keras.layers.Dense(32, activation='relu', input_dim=10))
+    model.add(tf.keras.layers.Dense(1, activation='sigmoid'))
 
     builder = keras_metadata_builder.KerasGraphMetadataBuilder(model)
     model_path = os.path.join(tf.test.get_temp_dir(), 'keras_model')

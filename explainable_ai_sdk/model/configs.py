@@ -15,8 +15,8 @@
 """Config classes for explanation methods.
 """
 import abc
-from typing import List, Union, Optional
 import dataclasses
+from typing import List, Union, Optional
 from explainable_ai_sdk.common import types
 
 

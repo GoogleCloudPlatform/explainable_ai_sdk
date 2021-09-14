@@ -18,6 +18,8 @@ import mock
 import tensorflow.compat.v1 as tf
 from explainable_ai_sdk.common import explain_metadata
 from explainable_ai_sdk.model import ai_platform_model
+from explainable_ai_sdk.model import constants
+from explainable_ai_sdk.model import http_utils
 from explainable_ai_sdk.model import model_factory
 from explainable_ai_sdk.model import utils
 
@@ -31,37 +33,51 @@ class ModelFactoryTest(tf.test.TestCase):
         utils,
         'fetch_explanation_metadata',
         return_value=explain_metadata.ExplainMetadata(
-            inputs=[], framework='xgboost')).start()
+            inputs=[], outputs=[], framework='xgboost')).start()
 
   def test_load_model_from_ai_platform(self):
     model_factory.register_caip_model(ai_platform_model.AIPlatformModel)
     model = model_factory.load_model_from_ai_platform(
         'fake_project', 'fake_model', 'fake_version')
     self.assertIsInstance(model, ai_platform_model.AIPlatformModel)
-    self.assertEqual(
-        'https://ml.googleapis.com/v1/projects/fake_project/'
-        'models/fake_model/versions/fake_version',
-        model._model_endpoint_uri)
+    with mock.patch.object(http_utils,
+                           'make_post_request_to_ai_platform') as mock_http:
+      model.predict(['test'])
+      mock_http.assert_called_with(
+          'https://ml.googleapis.com/v1/projects/fake_project/'
+          'models/fake_model/versions/fake_version:predict',
+          {'instances': ['test']},
+          None,
+          constants.DEFAULT_TIMEOUT)
 
   def test_load_model_from_ai_platform_without_version(self):
     model_factory.register_caip_model(ai_platform_model.AIPlatformModel)
     model = model_factory.load_model_from_ai_platform('fake_project',
                                                       'fake_model')
     self.assertIsInstance(model, ai_platform_model.AIPlatformModel)
-    self.assertEqual(
-        'https://ml.googleapis.com/v1/projects/fake_project/'
-        'models/fake_model',
-        model._model_endpoint_uri)
+    with mock.patch.object(http_utils,
+                           'make_post_request_to_ai_platform') as mock_http:
+      model.predict(['test'])
+      mock_http.assert_called_with(
+          'https://ml.googleapis.com/v1/projects/fake_project/'
+          'models/fake_model:predict', {'instances': ['test']}, None,
+          constants.DEFAULT_TIMEOUT)
 
   def test_load_model_from_vertex(self):
     model_factory.register_vertex_model(ai_platform_model.AIPlatformModel)
     model = model_factory.load_model_from_vertex(
         'fake_project', 'fake_region', 'fake_endpoint')
     self.assertIsInstance(model, ai_platform_model.AIPlatformModel)
-    self.assertEqual(
-        'https://fake_region-prediction-aiplatform.googleapis.com/v1beta1/'
-        'projects/fake_project/locations/fake_region/endpoints/fake_endpoint',
-        model._model_endpoint_uri)
+    with mock.patch.object(http_utils,
+                           'make_post_request_to_ai_platform') as mock_http:
+      model.predict(['test'])
+      mock_http.assert_called_with(
+          'https://fake_region-prediction-aiplatform.googleapis.com/v1beta1/'
+          'projects/fake_project/locations/fake_region/endpoints/fake_endpoint'
+          ':predict',
+          {'instances': ['test']},
+          None,
+          constants.DEFAULT_TIMEOUT)
 
   def test_load_model_from_ai_platform_not_implemented(self):
     # Make sure the registry is empty.

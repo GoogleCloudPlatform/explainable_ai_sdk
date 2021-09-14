@@ -99,7 +99,7 @@ class EstimatorMetadataBuilderTest(tf.test.TestCase, parameterized.TestCase):
     md_builder = estimator_metadata_builder.EstimatorMetadataBuilder(
         boosted_tree, columns, self._get_json_serving_input_fn, 'logits')
     saved_path = md_builder.save_model_with_metadata(tf.test.get_temp_dir())
-    metadata_file_path = os.path.join(saved_path, b'explanation_metadata.json')
+    metadata_file_path = os.path.join(saved_path, 'explanation_metadata.json')
     self.assertTrue(os.path.isfile(metadata_file_path))
     with tf.io.gfile.GFile(metadata_file_path, 'r') as f:
       generated_md = json.load(f)
@@ -130,7 +130,7 @@ class EstimatorMetadataBuilderTest(tf.test.TestCase, parameterized.TestCase):
         classifier_linear, [self.age, self.language, self.class_identity],
         self._get_json_serving_input_fn, 'probabilities')
     saved_path = md_builder.save_model_with_metadata(tf.test.get_temp_dir())
-    metadata_file_path = os.path.join(saved_path, b'explanation_metadata.json')
+    metadata_file_path = os.path.join(saved_path, 'explanation_metadata.json')
     self.assertTrue(os.path.isfile(metadata_file_path))
     with tf.io.gfile.GFile(metadata_file_path, 'r') as f:
       generated_md = json.load(f)
@@ -186,7 +186,7 @@ class EstimatorMetadataBuilderTest(tf.test.TestCase, parameterized.TestCase):
         classifier_dnn, [self.age, self.language],
         self._get_json_serving_input_fn, 'logits')
     saved_path = md_builder.save_model_with_metadata(tf.test.get_temp_dir())
-    metadata_file_path = os.path.join(saved_path, b'explanation_metadata.json')
+    metadata_file_path = os.path.join(saved_path, 'explanation_metadata.json')
     self.assertTrue(os.path.isfile(metadata_file_path))
     with tf.io.gfile.GFile(metadata_file_path, 'r') as f:
       generated_md = json.load(f)
@@ -232,7 +232,7 @@ class EstimatorMetadataBuilderTest(tf.test.TestCase, parameterized.TestCase):
         classifier_linear, [self.age, self.language],
         self._get_weighted_json_serving_input_fn, 'logits')
     saved_path = md_builder.save_model_with_metadata(tf.test.get_temp_dir())
-    metadata_file_path = os.path.join(saved_path, b'explanation_metadata.json')
+    metadata_file_path = os.path.join(saved_path, 'explanation_metadata.json')
     with tf.io.gfile.GFile(metadata_file_path, 'r') as f:
       generated_md = json.load(f)
     expected_md = {
@@ -295,7 +295,7 @@ class EstimatorMetadataBuilderTest(tf.test.TestCase, parameterized.TestCase):
         wide_deep_classifier, wide_columns,
         self._get_weighted_json_serving_input_fn, 'logits')
     saved_path = md_builder.save_model_with_metadata(tf.test.get_temp_dir())
-    metadata_file_path = os.path.join(saved_path, b'explanation_metadata.json')
+    metadata_file_path = os.path.join(saved_path, 'explanation_metadata.json')
     self.assertTrue(os.path.isfile(metadata_file_path))
     with tf.io.gfile.GFile(metadata_file_path, 'r') as f:
       generated_md = json.load(f)
@@ -370,7 +370,7 @@ class EstimatorMetadataBuilderTest(tf.test.TestCase, parameterized.TestCase):
         classifier_dnn, [self.age],
         self._get_json_serving_input_fn, 'logits')
     saved_path = md_builder.save_model_with_metadata(tf.test.get_temp_dir())
-    metadata_file_path = os.path.join(saved_path, b'explanation_metadata.json')
+    metadata_file_path = os.path.join(saved_path, 'explanation_metadata.json')
     self.assertTrue(os.path.isfile(metadata_file_path))
     with tf.io.gfile.GFile(metadata_file_path, 'r') as f:
       generated_md = json.load(f)
@@ -401,9 +401,9 @@ class EstimatorMetadataBuilderTest(tf.test.TestCase, parameterized.TestCase):
         classifier_linear, [self.age, self.language],
         self._get_weighted_json_serving_input_fn, 'logits')
     saved_path = md_builder.save_model_with_metadata(tf.test.get_temp_dir())
-    proto_file_path = os.path.join(saved_path, b'saved_model.pb')
+    proto_file_path = os.path.join(saved_path, 'saved_model.pb')
     self.assertTrue(os.path.isfile(proto_file_path))
-    variables_dir_path = os.path.join(saved_path, b'variables')
+    variables_dir_path = os.path.join(saved_path, 'variables')
     self.assertTrue(os.path.isdir(variables_dir_path))
 
   def test_constructor_empty_feature_columns(self):
@@ -440,7 +440,7 @@ class EstimatorMetadataBuilderTest(tf.test.TestCase, parameterized.TestCase):
         'logits',
         baselines=baselines)
     saved_path = md_builder.save_model_with_metadata(tf.test.get_temp_dir())
-    metadata_file_path = os.path.join(saved_path, b'explanation_metadata.json')
+    metadata_file_path = os.path.join(saved_path, 'explanation_metadata.json')
     self.assertTrue(os.path.isfile(metadata_file_path))
     with tf.io.gfile.GFile(metadata_file_path, 'r') as f:
       generated_md = json.load(f)
@@ -570,7 +570,7 @@ class EstimatorMetadataBuilderTest(tf.test.TestCase, parameterized.TestCase):
         duplicate_feature_treatment=treatment)
     saved_path = md_builder.save_model_with_metadata(
         tf.test.get_temp_dir())
-    metadata_file_path = os.path.join(saved_path, b'explanation_metadata.json')
+    metadata_file_path = os.path.join(saved_path, 'explanation_metadata.json')
     self.assertTrue(os.path.isfile(metadata_file_path))
     with tf.io.gfile.GFile(metadata_file_path, 'r') as f:
       generated_md = json.load(f)

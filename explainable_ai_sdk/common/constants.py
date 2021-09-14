@@ -14,10 +14,6 @@
 
 """Common constants used for explainability."""
 
-import tensorflow.compat.v1 as tf
-
-DEFAULT_SERVING_SIGNATURE_DEF_KEY = (
-    tf.saved_model.signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY)
 
 # Output index for when the model's output is a scalar.
 SCALAR_OUTPUT_INDEX = -1
@@ -37,6 +33,10 @@ ATTR_APPROX_ERROR = "__approx_error__"
 
 # The key in attribution dict that holds post processed image response.
 B64_JPEG = "b64_jpeg"
+B64_PNG = "b64_png"
+
+# The key prefix in attr dict that holds transformed post processed image.
+TRANSFORMED_PREFIX = "transformed_"
 
 # The maximum number of baselines users can specify in the metadata.
 MAX_NUM_BASELINES = 10

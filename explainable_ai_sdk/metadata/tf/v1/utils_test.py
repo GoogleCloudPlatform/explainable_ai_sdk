@@ -14,11 +14,6 @@
 
 
 """Tests for metadata utils."""
-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import os
 import tensorflow.compat.v1 as tf
 from explainable_ai_sdk.metadata.tf.v1 import utils
@@ -32,7 +27,7 @@ class UtilsTest(tf.test.TestCase):
       x = tf.placeholder(shape=[None, 10], dtype=tf.float32, name='inp')
       weights = tf.constant(1., shape=(10, 2), name='weights')
     model_path = os.path.join(tf.test.get_temp_dir(), 'explicit')
-    utils.save_graph_model(sess, model_path, {'x': x}, {'w': weights}, ['tag'])
+    utils.save_graph_model(sess, model_path, {'x': x}, {'w': weights}, {'tag'})
     self.assertTrue(os.path.isfile(os.path.join(model_path, 'saved_model.pb')))
     tf.reset_default_graph()
     loading_session = tf.Session(graph=tf.Graph())
@@ -48,7 +43,7 @@ class UtilsTest(tf.test.TestCase):
     weights = tf.constant(1., shape=(10, 2), name='weights')
     model_path = os.path.join(tf.test.get_temp_dir(), 'default')
     utils.save_graph_model(
-        tf.Session(), model_path, {'x': x}, {'w': weights}, ['tag'])
+        tf.Session(), model_path, {'x': x}, {'w': weights}, {'tag'})
     self.assertTrue(os.path.isfile(os.path.join(model_path, 'saved_model.pb')))
 
   def test_save_graph_model_kwargs(self):
@@ -57,7 +52,7 @@ class UtilsTest(tf.test.TestCase):
     model_path = os.path.join(tf.test.get_temp_dir(), 'kwargs')
     utils.save_graph_model(
         tf.Session(),
-        model_path, {'x': x}, {'w': weights}, ['tag'],
+        model_path, {'x': x}, {'w': weights}, {'tag'},
         main_op=tf.tables_initializer(),
         strip_default_attrs=False)
     self.assertTrue(os.path.isfile(os.path.join(model_path, 'saved_model.pb')))

@@ -19,6 +19,7 @@ The class is a key class for SDK funtionalities (e.g., visualization).
 """
 import base64
 import io
+import json
 from typing import Any, Dict, List, Optional
 
 import IPython
@@ -26,7 +27,8 @@ from matplotlib import image as mpimg
 from matplotlib import pyplot as plt
 import numpy as np
 
-from xai_tabular_widget import TabularWidget
+import xai_image_widget
+import xai_tabular_widget
 from explainable_ai_sdk.common import attribution
 from explainable_ai_sdk.common import explain_metadata
 from explainable_ai_sdk.common import types
@@ -41,7 +43,8 @@ class Explanation(object):
   def __init__(self,
                instance_attribution: attribution.LabelIndexToAttribution,
                instance: types.Instance,
-               modality_input_list_map: Dict[str, List[str]]):
+               modality_input_list_map: Dict[str, List[str]],
+               metadata: Optional[explain_metadata.ExplainMetadata] = None):
     """Creates an Explanation object.
 
     Args:
@@ -50,10 +53,14 @@ class Explanation(object):
       instance: A dictionary of values representing the data point.
       modality_input_list_map: Dictionary mapping from modality to a list of
         input names.
+      metadata: Explanation metadata
     """
     self._modality_input_list_map = modality_input_list_map
     self._instance = instance
     self._label_index_to_attributions = instance_attribution
+    self._metadata_json = metadata.to_json() if metadata else None
+    self._image_widget = None
+    self._tabular_widget = None
 
   @classmethod
   def from_ai_platform_response(
@@ -234,20 +241,36 @@ class Explanation(object):
     if (explain_metadata.Modality.IMAGE not in self._modality_input_list_map or
         not self._modality_input_list_map[explain_metadata.Modality.IMAGE]):
       return
+
     target_label_attr = self.get_attribution(label_index)
-    input_names = self._modality_input_list_map[explain_metadata.Modality.IMAGE]
-    num_features = len(input_names)
+    if self._metadata_json:
+      data = target_label_attr.to_json(debug=True)
 
-    if num_features > 0:
-      for input_name in input_names:
-        attr_values = target_label_attr.post_processed_attributions
-        b64str = attr_values[input_name]['b64_jpeg']
-        i = base64.b64decode(b64str)
-        i = io.BytesIO(i)
-        i = mpimg.imread(i, format='JPG')
+      if self._image_widget is None:
+        self._image_widget = xai_image_widget.ImageWidget()
 
-        plt.imshow(i, interpolation='nearest')
-        plt.show()
+      def input_to_widget():
+        self._image_widget.load_data_from_dict(
+            json.loads(data), json.loads(self._metadata_json))
+
+      self._image_widget.on_trait_change(input_to_widget, 'ready')
+      IPython.display.display(self._image_widget)
+
+    else:
+      input_names = (
+          self._modality_input_list_map[explain_metadata.Modality.IMAGE])
+      num_features = len(input_names)
+
+      if num_features > 0:
+        for input_name in input_names:
+          attr_values = target_label_attr.post_processed_attributions
+          b64str = attr_values[input_name]['b64_jpeg']
+          i = base64.b64decode(b64str)
+          i = io.BytesIO(i)
+          i = mpimg.imread(i, format='JPG')
+
+          plt.imshow(i, interpolation='nearest')
+          plt.show()
 
   def _visualize_tabular_attributions(self, label_index: Optional[int] = None):
     """Displays a single tabular attribution through the Tabular Widget.
@@ -257,15 +280,23 @@ class Explanation(object):
         label. If not, will use the label with highest prediction score.
     """
     if constants.TABULAR_MODALITY in self._modality_input_list_map:
-      target_label_attr = self.get_attribution(label_index).to_json(
-          include_input_values=True)
-      widget = TabularWidget()
+      if self._metadata_json:
+        target_label_attr = self.get_attribution(label_index).to_json(
+            include_input_values=True)
 
-      def input_to_widget():
-        widget.load_data_from_json(target_label_attr)
+        if self._tabular_widget is None:
+          self._tabular_widget = xai_tabular_widget.TabularWidget()
 
-      widget.on_trait_change(input_to_widget, 'ready')
-      IPython.display.display(widget)
+        def input_to_widget():
+          self._tabular_widget.load_data_from_json(target_label_attr)
+
+        self._tabular_widget.on_trait_change(input_to_widget, 'ready')
+        IPython.display.display(self._tabular_widget)
+      else:
+        self.visualize_top_k_features(
+            k=len(self._modality_input_list_map[constants.TABULAR_MODALITY]),
+            label_index=label_index,
+            modality=constants.TABULAR_MODALITY)
 
   def visualize_attributions(
       self,

@@ -315,6 +315,13 @@ class PixelsVisualizationKeys(utils.FieldKeys):
     OVERLAY_MULTIPLIER: A multiplier in range [0, 1] indicating the fraction
       of the input image to include in the overlaid visualization (the other
       fraction, i.e. 1 - overlay_multiplier, applies to the attributions).
+    OUTPUT_FORMAT: Output format of the post-processed image. Currently
+      supporting 'jpeg' and 'png'. Default to 'jpeg'.
+    RESIZED_SHAPE: Resize the attributions in the visualization. It will be
+      applied when the instance (before any transformation) is given.
+    TRANSLATE: Translates the origin of the visualization by [x, y]. Both of
+        them needs to be non-negative. Please note that the x corresponds to
+        columns and y corresponds to the columns.
   """
   # Whether to show positive attributions, negative attributions or both.
   POLARITY = "polarity"
@@ -333,6 +340,13 @@ class PixelsVisualizationKeys(utils.FieldKeys):
   # How to overlay the visualized attributions over the input image.
   OVERLAY_TYPE = "overlay_type"
   OVERLAY_MULTIPLIER = "overlay_multiplier"
+
+  # Output format
+  OUTPUT_FORMAT = "output_format"
+
+  # Transform visualization
+  RESIZED_SHAPE = "resized_shape"
+  TRANSLATE = "translate"
 
 
 class OutlinesVisualizationKeys(utils.FieldKeys):
@@ -355,6 +369,13 @@ class OutlinesVisualizationKeys(utils.FieldKeys):
     OVERLAY_MULTIPLIER: A multiplier in range [0, 1] indicating the fraction
       of the input image to include in the overlaid visualization (the other
       fraction, i.e. 1 - overlay_multiplier, applies to the attributions).
+    OUTPUT_FORMAT: Output format of the post-processed image. Currently
+      supporting 'jpeg' and 'png'. Default to 'jpeg'.
+    RESIZED_SHAPE: Resize the attributions in the visualization. It will be
+      applied when the instance (before any transformation) is given.
+    TRANSLATE: Translates the origin of the visualization by [x, y]. Both of
+        them needs to be non-negative. Please note that the x corresponds to
+        columns and y corresponds to the columns.
   """
   # Whether to show positive attributions, negative attributions or both.
   POLARITY = "polarity"
@@ -372,6 +393,13 @@ class OutlinesVisualizationKeys(utils.FieldKeys):
   # How to overlay the visualized attributions over input image.
   OVERLAY_TYPE = "overlay_type"
   OVERLAY_MULTIPLIER = "overlay_multiplier"
+
+  # Output format
+  OUTPUT_FORMAT = "output_format"
+
+  # Transform visualization
+  RESIZED_SHAPE = "resized_shape"
+  TRANSLATE = "translate"
 
 
 class OverlayType(utils.FieldKeys):
@@ -791,6 +819,10 @@ class InputMetadata(object):
   @property
   def group_name(self):
     return self._group_name
+
+  def set_group_name(self, new_name):
+    """Sets the group name for this input."""
+    self._group_name = new_name
 
   def update_gradient_tensor_names(self,
                                    output_name,
@@ -1963,6 +1995,7 @@ class ExplainMetadata(object):
     Properties to satisfy.
     1. The number of baseline for each input should be the same.
     2. input_tensor_names must exist when framework is tensorflow
+    3. TF related fields should not be set for non-TF framework
     """
     validation_utils.validate_object_init_type_hint(self)
     baseline_counter = collections.Counter()
@@ -1981,6 +2014,42 @@ class ExplainMetadata(object):
         not self._input_tensor_names):
       raise ValueError("input_tensor_names must exist when framework is "
                        "tensorflow/tensorflow2.")
+    other_frameworks = (Framework.XGBOOST, Framework.SCIKIT_LEARN,
+                        Framework.CUSTOM_CONTAINER)
+    valid_input_fields = (InputMetadataKeys.INPUT_BASELINES,
+                          InputMetadataKeys.MODALITY,
+                          InputMetadataKeys.GROUP_NAME,
+                          InputMetadataKeys.ENCODING,
+                          InputMetadataKeys.INDEX_FEATURE_MAPPING)
+    valid_output_fields = (OutputMetadataKeys.INDEX_NAME_MAPPING,
+                           OutputMetadataKeys.INDEX_NAME_MAPPING_KEY)
+    logging.debug(
+        "XAI Validation :: Metadata: [ExplainMetadata] "
+        "All field must be valid in input metadata for Frameworks: "
+        "`%s`. Valid set: `%s`", other_frameworks, valid_input_fields)
+
+    logging.debug(
+        "XAI Validation :: Metadata: [ExplainMetadata] "
+        "All field must be valid in output metadata for Frameworks: "
+        "`%s`. Valid set: `%s`", other_frameworks, valid_output_fields)
+
+    if self._framework in other_frameworks:
+      for in_md in self._inputs:
+        in_md_dict = in_md.to_dict(remove_empty_vals=True)
+        for field in in_md_dict:
+          if field not in valid_input_fields:
+            raise ValueError(
+                "Invalid field `{}` in input metadata for non-TF frameworks "
+                "{}. Valid set is: {}.".format(field, other_frameworks,
+                                               valid_input_fields))
+      for out_md in self._outputs:
+        out_md_dict = out_md.to_dict(remove_empty_vals=True)
+        for field in out_md_dict:
+          if field not in valid_output_fields:
+            raise ValueError(
+                "Invalid field `{}` in input metadata for non-TF frameworks "
+                "{}. Valid set is: {}.".format(field, other_frameworks,
+                                               valid_input_fields))
 
   def get_dtype_with_tensor_name(self, tensor_name: str) -> Optional[str]:
     if tensor_name in self._tensor_name_to_dtype_mapping:
@@ -2190,7 +2259,7 @@ def explain_metadata_instance_check(explain_md: ExplainMetadata):
 def validate_visualization(explain_md: ExplainMetadata):
   """Checks that the visualization property has valid values."""
 
-  for in_md in explain_md.inputs:
+  for i, in_md in enumerate(explain_md.inputs):
     if in_md.visualization is None:
       return  # Visualization config not provided.
     logging.debug(
@@ -2200,6 +2269,12 @@ def validate_visualization(explain_md: ExplainMetadata):
       raise ValueError(
           "Cannot visualize attributions on non-image inputs with "
           "modailty: {} ".format(in_md.modality))
+    # if visualization config is present and type is not set, set the type
+    # to be Pixels as this is the only visualization type XRAI should use
+    if AttributionVisualizationRequiredKeys.TYPE not in in_md.visualization:
+      in_md.visualization[AttributionVisualizationRequiredKeys
+                          .TYPE] = AttributionVisualizationTypes.PIXELS
+      explain_md.inputs[i] = in_md
     _validate_visualization_key(in_md)
 
     #  Overlay type must be in the predefined set
@@ -2315,13 +2390,6 @@ def validate_xrai(explain_md: ExplainMetadata):
   for i, in_md in enumerate(explain_md.inputs):
     if in_md.visualization is None:
       continue
-
-    # if visualization config is present and type is not set, set the type
-    # to be Pixels as this is the only visualization type XRAI should use
-    if AttributionVisualizationRequiredKeys.TYPE not in in_md.visualization:
-      in_md.visualization[AttributionVisualizationRequiredKeys
-                          .TYPE] = AttributionVisualizationTypes.PIXELS
-      explain_md.inputs[i] = in_md
 
     viz_type = in_md.visualization[AttributionVisualizationRequiredKeys.TYPE]
     if viz_type != AttributionVisualizationTypes.PIXELS:

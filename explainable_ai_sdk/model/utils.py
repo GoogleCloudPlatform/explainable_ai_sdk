@@ -14,12 +14,16 @@
 
 """Utility functions for models.
 """
+import base64
 import collections
+import io
 import os
 import re
 from typing import Dict, List, Optional
-
 import google.auth.credentials
+import numpy as np
+from PIL import Image
+
 from explainable_ai_sdk.common import explain_metadata
 from explainable_ai_sdk.model import constants
 from explainable_ai_sdk.model import http_utils
@@ -156,3 +160,18 @@ def get_endpoint_uri(resource_path: str,
     version = constants.CAIP_API_ENDPOINT_VERSION
 
   return os.path.join(ai_platform_endpoint, version, resource_path)
+
+
+def encode_ndarray_as_b64str(array: np.ndarray):
+  """Creates a b64 str from an ndarray.
+
+  Args:
+    array: An ndarray for encoding.
+
+  Returns:
+    Encoded b64 string.
+  """
+  raw_img = Image.fromarray(np.uint8(np.array(array)), 'RGB')
+  buffer = io.BytesIO()
+  raw_img.save(buffer, format='jpeg')
+  return base64.b64encode(buffer.getvalue()).decode('utf-8')

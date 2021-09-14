@@ -21,9 +21,11 @@ import mock
 import numpy as np
 import tensorflow.compat.v1 as tf
 
+from explainable_ai_sdk.common import attribution
 from explainable_ai_sdk.common import explain_metadata
 from explainable_ai_sdk.model import constants
 from explainable_ai_sdk.model import explanation
+from explainable_ai_sdk.model import utils
 
 
 
@@ -64,6 +66,57 @@ class ExplanationTest(tf.test.TestCase):
 
     self.explanation = explanation.Explanation.from_ai_platform_response(
         [fake_attr_dict_1, fake_attr_dict_2], {}, modality_input_list_map)
+
+    # Mocks for local explanation
+    fake_local_attr_dict = {
+        'attributions': {
+            'data': [0.01, 0.02, 0.03],
+            'image': {
+                'b64_jpeg': utils.encode_ndarray_as_b64str(
+                    np.array([[[0.1, 0.1, 0.1], [0.2, 0.2, 0.3]]]))}
+        },
+        'debug_raw_attribution_dict': {
+            'data': [0.01, 0.02, 0.03],
+            'image': [[[0.1, 0.1, 0.1], [0.2, 0.2, 0.3]]]},
+        'debug_input_values': {
+            'data': [1, 2, 3],
+            'image': [[[255, 255, 255], [200, 0, 111]]]},
+        'baseline_score': 0.0001,
+        'example_score': 0.4,
+        'label_index': 170,
+        'output_name': 'probability',
+        'approx_error': 0.033
+    }
+
+    metadata = explain_metadata.ExplainMetadata.from_dict({
+        'outputs': {
+            'output_0': {
+                'output_tensor_name': 'output_0'
+            }
+        },
+        'inputs': {
+            'image': {
+                'input_tensor_name': 'numpy_inputs',
+                'encoding': 'identity',
+                'modality': 'image',
+                'visualization': {
+                    'type': 'pixels'
+                }
+            },
+            'data': {
+                'input_tensor_name': 'data',
+                'encoding': 'identity',
+            }
+        },
+        'framework': 'tensorflow2',
+        'tags': ['explainable_ai_sdk']
+    })
+
+    self.local_explanation = explanation.Explanation(
+        attribution.LabelIndexToAttribution.from_list([fake_local_attr_dict]),
+        fake_local_attr_dict['debug_input_values'],
+        utils.create_modality_inputs_map_from_metadata(metadata),
+        metadata)
 
   def test_get_attribution_no_label_index(self):
     target_label_attr = self.explanation.get_attribution()
@@ -114,12 +167,10 @@ class ExplanationTest(tf.test.TestCase):
   def fake_ipython_display(self, target):
     pass
 
-  def test_visualize_attributions(self):
-    with mock.patch(
-        'IPython.display.display',
-        wraps=self.fake_ipython_display) as mock_display:
-      self.explanation.visualize_attributions()
-      mock_display.assert_called_once()
+  @mock.patch.object(plt, 'show', autospec=True)
+  def test_visualize_attributions(self, mock_show):
+    self.explanation.visualize_attributions()
+    self.assertTrue(mock_show.called)
 
   def test_no_label_index_output(self):
     with mock.patch('IPython.display.display', wraps=self.fake_ipython_display):
@@ -127,6 +178,16 @@ class ExplanationTest(tf.test.TestCase):
         self.explanation.visualize_attributions(print_label_index=False)
         self.assertNotIn('Label Index ', mock_stdout.getvalue())
 
+  def test_local_visualize_attributions(self):
+    with mock.patch(
+        'IPython.display.display',
+        wraps=self.fake_ipython_display) as mock_display:
+      self.local_explanation.visualize_attributions()
+      self.assertEqual(mock_display.call_count, 2)
+      self.assertIsNotNone(self.local_explanation._tabular_widget)
+      self.assertFalse(self.local_explanation._tabular_widget.ready)
+      self.assertIsNotNone(self.local_explanation._image_widget)
+      self.assertFalse(self.local_explanation._image_widget.ready)
 
 if __name__ == '__main__':
   tf.test.main()

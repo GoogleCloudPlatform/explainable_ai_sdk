@@ -129,24 +129,6 @@ def get_sample_from_batched_tensors(tensors: Union[List[Any], Dict[str, Any]],
   return {key: val[idx] for key, val in tensors.items()}
 
 
-def _check_size_type(a: Any, b: Any) -> bool:
-  """Check if two instances have the same type. Check shape for list, ndarray.
-
-  Args:
-    a: Instance to compare with.
-    b: Instance to compare with.
-  Returns:
-    True, if same type and same shape for list, ndarray. False, otherwise.
-  """
-  a = np.array(a)
-  b = np.array(b)
-  if not isinstance(a, type(b)):
-    return False
-  if isinstance(a, np.ndarray):
-    return a.shape == b.shape
-  return True
-
-
 def columnarize(instances: List[Dict[Any, Any]],
                 keys: Optional[Set[Any]] = None) -> Dict[Any, Any]:
   """Columnarize inputs.
@@ -182,9 +164,6 @@ def columnarize(instances: List[Dict[Any, Any]],
         continue
       if k not in columns:
         columns[k] = []
-      if columns[k] and not _check_size_type(columns[k][-1], v):
-        raise ValueError("All the elements in the dictionary should have"
-                         " identical length/shape.")
       columns[k].append(v)
   return columns
 
@@ -268,19 +247,17 @@ def rowify(columns: Dict[Any, Any]) -> List[Dict[str, Any]]:
   if not columns:
     return result  # Empty row.
 
-  # Make sure columns are ndarrays. ndarrays help calculate shapes.
-  columns_np = {key: np.array(value) for (key, value) in columns.items()}
-  sizes_set = {e.shape[0] for e in six.itervalues(columns_np)}
+  sizes_set = {len(e) for e in six.itervalues(columns)}
 
   # All the elements in the length array should be identical. Otherwise,
   # raise an exception.
   if len(sizes_set) > 1:
-    sizes_dict = {name: e.shape[0] for name, e in six.iteritems(columns_np)}
+    sizes_dict = {name: len(e) for name, e in six.iteritems(columns)}
     raise ValueError("All the elements in the length array should be identical."
                      " See the inputs and their size: {}.".format(sizes_dict))
 
   # Pick an arbitrary value in the map to get its size.
-  num_instances = len(next(six.itervalues(columns_np)))
+  num_instances = len(next(six.itervalues(columns)))
   for row in six.moves.xrange(num_instances):
     result.append({
         name: output[row].tolist()
@@ -739,6 +716,37 @@ def convert_dict_key(key_map: Dict[str, str],
       raise ValueError("Conversion failed. Key {} not in key map {}.".format(
           k, repr(key_map)))
   return d
+
+
+def find_b64(
+    data: Union[Dict[str, Union[str, Any]], List[Any], np.ndarray]
+    ) -> Union[Dict[str, str], None]:
+  """Finds the first {'b64': ...} in data recursively.
+
+  Args:
+    data: Container that may contain {'b64': ...}.
+
+  Returns:
+    The first b64 dict if exists any. Otherwise, returns None.
+  """
+  if isinstance(data, list):
+    for val in data:
+      ret = find_b64(val)
+      if isinstance(ret, dict) and "b64" in ret:
+        return ret
+  elif isinstance(data, dict):
+    if six.viewkeys(data) == {"b64"}:
+      return data
+    else:
+      for val in data.values():
+        ret = find_b64(val)
+        if isinstance(ret, dict) and "b64" in ret:
+          return ret
+  elif isinstance(data, np.ndarray):
+    data = data.tolist()
+    return find_b64(data)
+  else:
+    return None
 
 
 def replace_b64_dict(dict_to_replace: Dict[str, Any]):

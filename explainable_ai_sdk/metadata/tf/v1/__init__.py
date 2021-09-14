@@ -16,3 +16,4 @@
 from explainable_ai_sdk.metadata.tf.v1.estimator_metadata_builder import EstimatorMetadataBuilder
 from explainable_ai_sdk.metadata.tf.v1.graph_metadata_builder import GraphMetadataBuilder
 from explainable_ai_sdk.metadata.tf.v1.keras_metadata_builder import KerasGraphMetadataBuilder
+from explainable_ai_sdk.metadata.tf.v1.saved_model_metadata_builder import SavedModelMetadataBuilder
