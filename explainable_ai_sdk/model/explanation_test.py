@@ -178,16 +178,6 @@ class ExplanationTest(tf.test.TestCase):
         self.explanation.visualize_attributions(print_label_index=False)
         self.assertNotIn('Label Index ', mock_stdout.getvalue())
 
-  def test_local_visualize_attributions(self):
-    with mock.patch(
-        'IPython.display.display',
-        wraps=self.fake_ipython_display) as mock_display:
-      self.local_explanation.visualize_attributions()
-      self.assertEqual(mock_display.call_count, 2)
-      self.assertIsNotNone(self.local_explanation._tabular_widget)
-      self.assertFalse(self.local_explanation._tabular_widget.ready)
-      self.assertIsNotNone(self.local_explanation._image_widget)
-      self.assertFalse(self.local_explanation._image_widget.ready)
 
 if __name__ == '__main__':
   tf.test.main()

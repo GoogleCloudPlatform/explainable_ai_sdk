@@ -92,15 +92,15 @@ SL_SHAPLEY_PREP_DATA = (
     "SampledShapley-calculate_baselines_attributions-prep_data")
 SL_SHAPLEY_GEN_COUNTERFACTUALS = (
     *SL_EXPLAIN_LABEL_ATTRIBUTIONS_VIA_STRATEGY_RAW,
-    "SampledShapley-calculate_baselines_attributions-"
+    "SampledShapley-calculate_baselines_attributions-",
     "generating_counterfactuals")
 SL_SHAPLEY_PRED_COUNTERFACTUALS = (
     *SL_EXPLAIN_LABEL_ATTRIBUTIONS_VIA_STRATEGY_RAW,
-    "SampledShapley-calculate_baselines_attributions-"
+    "SampledShapley-calculate_baselines_attributions-",
     "calculate_counterfactual_predictions")
 SL_SHAPLEY_RAW_ATTRIBUTIONS = (
     *SL_EXPLAIN_LABEL_ATTRIBUTIONS_VIA_STRATEGY_RAW,
-    "SampledShapley-calculate_baselines_attributions-"
+    "SampledShapley-calculate_baselines_attributions-",
     "calculate_raw_attributions")
 
 SL_SHAPLEY_CC_PREP_SOLVER = (
@@ -111,33 +111,32 @@ SL_SHAPLEY_CC_PREP_DATA = (
     "SampledShapleyCC-calculate_baselines_attributions-prep_data")
 SL_SHAPLEY_CC_GEN_COUNTERFACTUALS = (
     *SL_EXPLAIN_LABEL_ATTRIBUTIONS_VIA_STRATEGY_RAW,
-    "SampledShapleyCC-calculate_baselines_attributions-"
+    "SampledShapleyCC-calculate_baselines_attributions-",
     "generating_counterfactuals")
 SL_SHAPLEY_CC_PRED_COUNTERFACTUALS = (
     *SL_EXPLAIN_LABEL_ATTRIBUTIONS_VIA_STRATEGY_RAW,
-    "SampledShapleyCC-calculate_baselines_attributions-"
+    "SampledShapleyCC-calculate_baselines_attributions-",
     "calculate_counterfactual_predictions")
 SL_SHAPLEY_CC_RAW_ATTRIBUTIONS = (
     *SL_EXPLAIN_LABEL_ATTRIBUTIONS_VIA_STRATEGY_RAW,
-    "SampledShapleyCC-calculate_baselines_attributions-"
+    "SampledShapleyCC-calculate_baselines_attributions-",
     "calculate_raw_attributions")
 
 SL_IG_PREP_DATA = (*SL_EXPLAIN_LABEL_ATTRIBUTIONS_VIA_STRATEGY_RAW,
                    "IG-calculate_single_baseline_attributions-prep_data")
 SL_IG_GEN_PATHS = (*SL_EXPLAIN_LABEL_ATTRIBUTIONS_VIA_STRATEGY_RAW,
-                   "IG-calculate_single_baseline_attributions-"
+                   "IG-calculate_single_baseline_attributions-",
                    "generating_paths")
 SL_IG_ATTRIBUTION_LABELS = (*SL_EXPLAIN_LABEL_ATTRIBUTIONS_VIA_STRATEGY_RAW,
-                            "IG-calculate_single_baseline_attributions-"
+                            "IG-calculate_single_baseline_attributions-",
                             "Compute_attributions_for_each_label_index")
 SL_IG_PATH_UNROLLLED = (*SL_IG_ATTRIBUTION_LABELS,
-                        "IG-_compute_ig_attributions-"
-                        "Path_unrolling")
+                        "IG-_compute_ig_attributions-", "Path_unrolling")
 SL_IG_EVAL_SMOOTH_GRAD = (*SL_IG_ATTRIBUTION_LABELS,
-                          "IG-_compute_ig_attributions-"
+                          "IG-_compute_ig_attributions-",
                           "Evaluate_smoothed_gradient")
 SL_IG_COMPUTE_AVG_ATTRIBUTIONS = (*SL_IG_ATTRIBUTION_LABELS,
-                                  "IG-_compute_ig_attributions-"
+                                  "IG-_compute_ig_attributions-",
                                   "Compute_averaged_attributions")
 RED_COLORMAP = [[0.0, 0.0, 0.0], [64.248046875, 0.0, 0.0],
                 [128.49609375, 0.0, 0.0], [128.994140625, 0.0, 0.0],

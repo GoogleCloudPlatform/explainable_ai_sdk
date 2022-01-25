@@ -128,6 +128,7 @@ class Framework(utils.FieldKeys):
   TENSORFLOW2 = "tensorflow2"
   XGBOOST = "xgboost"
   SCIKIT_LEARN = "scikit_learn"
+  PYTORCH = "pytorch"
   CUSTOM_CONTAINER = "custom_container"
 
 
@@ -2387,7 +2388,7 @@ def validate_xrai(explain_md: ExplainMetadata):
                 "input visualization type must be `pixels` for XRAI.")
 
   validate_modality(explain_md, Modality.IMAGE)
-  for i, in_md in enumerate(explain_md.inputs):
+  for in_md in explain_md.inputs:
     if in_md.visualization is None:
       continue
 
